@@ -34,10 +34,10 @@ interface Particle {
 }
 
 // Optimized constants - balanced for performance vs visuals
-const TRAIL_POINTS = 15; // Reduced from 20
-const INTERPOLATION_POINTS = 2; // Reduced from 3
-const MAX_PARTICLES = 45; // Reduced from 60
-const PARTICLE_SPAWN_RATE = 0.4; // Slightly reduced
+const TRAIL_POINTS = 15;
+const INTERPOLATION_POINTS = 2;
+const MAX_PARTICLES = 45;
+const PARTICLE_SPAWN_RATE = 0.4;
 const MIN_VELOCITY_FOR_BURST = 12;
 const BURST_COOLDOWN = 120;
 const UPDATE_THROTTLE = 16; // ~60fps max
@@ -62,15 +62,15 @@ const MouseTracker: React.FC = () => {
 	// Memoized particle creation to avoid recreation
 	const createParticleBurst = useCallback(
 		(x: number, y: number, velocity: number, baseHue: number) => {
-			const burstIntensity = Math.min(velocity * 0.06, 1.6); // Slightly reduced
-			const particleCount = Math.floor(burstIntensity * 3 + 2); // 2-7 particles
+			const burstIntensity = Math.min(velocity * 0.06, 1.6);
+			const particleCount = Math.floor(burstIntensity * 3 + 2);
 
 			const newParticles: Particle[] = [];
 
 			for (let i = 0; i < particleCount; i++) {
 				const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.3;
 				const speed = (Math.random() * 2 + 0.8) * burstIntensity;
-				const life = Math.random() * 35 + 20; // Shorter life
+				const life = Math.random() * 35 + 20;
 
 				newParticles.push({
 					id: particleIdRef.current++,
@@ -80,7 +80,7 @@ const MouseTracker: React.FC = () => {
 					vy: Math.sin(angle) * speed,
 					life: life,
 					maxLife: life,
-					size: Math.random() * 2.5 + 1.5, // Slightly smaller
+					size: Math.random() * 2.5 + 1.5,
 					hue: (baseHue + Math.random() * 40 - 20) % 360,
 					brightness: Math.random() * 18 + 62,
 					timestamp: Date.now(),
@@ -117,8 +117,8 @@ const MouseTracker: React.FC = () => {
 	// Memoized trail cleanup
 	const cleanupTrail = useCallback(() => {
 		const now = Date.now();
-		setTrail(
-			(prevTrail) => prevTrail.filter((point) => now - point.timestamp < 600) // Shorter cleanup time
+		setTrail((prevTrail) =>
+			prevTrail.filter((point) => now - point.timestamp < 600)
 		);
 	}, []);
 
@@ -222,10 +222,10 @@ const MouseTracker: React.FC = () => {
 		() =>
 			particles.map((particle) => {
 				const lifeRatio = particle.life / particle.maxLife;
-				const opacity = Math.pow(lifeRatio, 0.65) * 0.7; // Slightly reduced
+				const opacity = Math.pow(lifeRatio, 0.65) * 0.7;
 				const scale = (1 - Math.pow(1 - lifeRatio, 2)) * particle.size;
 
-				const saturation = 80; // Reduced from 85
+				const saturation = 80;
 				const lightness = 65;
 
 				return (
@@ -253,7 +253,7 @@ const MouseTracker: React.FC = () => {
 							opacity: opacity,
 						}}
 						transition={{
-							duration: 0.08, // Faster transitions
+							duration: 0.08,
 							ease: "easeOut",
 						}}
 					/>
@@ -270,7 +270,7 @@ const MouseTracker: React.FC = () => {
 					const age = (Date.now() - point.timestamp) / 1000;
 					const opacity = Math.max(0, 1 - age * 2.8);
 
-					if (opacity < 0.05) return null; // Skip nearly invisible
+					if (opacity < 0.05) return null;
 
 					const velocity = Math.sqrt(
 						point.velocityX ** 2 + point.velocityY ** 2
@@ -345,22 +345,26 @@ const MouseTracker: React.FC = () => {
 				}}
 			/>
 
-			{/* Inner cursor */}
+			{/* Inner cursor (Tilted Triangle) */}
 			<motion.div
-				className="absolute w-2 h-2 rounded-full pointer-events-none will-change-transform"
+				className="absolute pointer-events-none will-change-transform"
 				style={{
-					left: mousePosition.x - 4,
-					top: mousePosition.y - 4,
+					left: mousePosition.x - 8, // Center the larger triangle
+					top: mousePosition.y - 14, // Offset to align tip with mouse
+					width: 18,
+					height: 20,
+					clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)", // Upward triangle
 					background:
-						"radial-gradient(circle, rgba(255, 255, 255, 0.85) 0%, rgba(99, 102, 241, 0.65) 100%)",
-					boxShadow: "0 0 10px rgba(99, 102, 241, 0.4)",
+						"linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(99, 102, 241, 0.8))",
+					boxShadow: "0 0 14px rgba(99, 102, 241, 0.5)",
+					transform: "rotate(-25deg)", // Tilt like Windows cursor
 				}}
 			/>
 
 			{/* Optimized Trail */}
 			{trailElements}
 
-			{/* Simplified ambient glow */}
+			{/* Primary ambient glow */}
 			<motion.div
 				className="absolute w-28 h-28 rounded-full pointer-events-none will-change-transform"
 				style={{
@@ -378,6 +382,29 @@ const MouseTracker: React.FC = () => {
 				}}
 				transition={{
 					duration: 2.8,
+					repeat: Infinity,
+					ease: "easeInOut",
+				}}
+			/>
+
+			{/* Secondary ambient glow */}
+			<motion.div
+				className="absolute w-40 h-40 rounded-full pointer-events-none will-change-transform"
+				style={{
+					left: mousePosition.x - 80,
+					top: mousePosition.y - 80,
+					background: `radial-gradient(circle, 
+						hsla(240, 60%, 70%, 0.06) 0%, 
+						hsla(270, 70%, 60%, 0.03) 60%, 
+						transparent 90%)`,
+					filter: "blur(24px)",
+				}}
+				animate={{
+					scale: [1, 1.15, 1],
+					opacity: [0.15, 0.3, 0.15],
+				}}
+				transition={{
+					duration: 3.5,
 					repeat: Infinity,
 					ease: "easeInOut",
 				}}

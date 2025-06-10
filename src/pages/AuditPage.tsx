@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
 	Upload,
@@ -16,6 +16,7 @@ import {
 import GlassCard from "../components/ui/GlassCard";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import MouseTracker from "../components/ui/MouseTracker";
+import axios from "axios";
 
 interface AuditResult {
 	id: string;
@@ -44,6 +45,33 @@ interface AuditResult {
 	};
 }
 
+interface ApiAuditResponse {
+	id: string;
+	wallet?: string;
+	codeHash?: string;
+	model?: string;
+	auditJson: {
+		severity: string;
+		line: number;
+		issue: string;
+		recommendation: string;
+	}[];
+	gasOptimizations: {
+		estimatedGas: number;
+		suggestions: {
+			line: number;
+			description: string;
+			estimatedSavings: number;
+		}[];
+	};
+	ipfsCID?: string;
+	txHash?: string;
+	status: "pending" | "completed" | "error";
+	email?: string;
+	createdAt?: string;
+	completedAt?: string;
+}
+
 const AuditPage: React.FC = () => {
 	const [formData, setFormData] = useState({
 		walletAddress: "",
@@ -56,85 +84,144 @@ const AuditPage: React.FC = () => {
 	const [activeTab, setActiveTab] = useState<"issues" | "gas" | "summary">(
 		"summary"
 	);
+	const [auditId, setAuditId] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setIsSubmitting(true);
+		setError(null);
 
-		// Simulate API call
-		await new Promise((resolve) => setTimeout(resolve, 4000));
+		try {
+			const response = await axios.post("http://localhost:5000/api/audit", {
+				wallet: formData.walletAddress,
+				code: formData.solidityCode,
+				email: formData.email,
+			});
 
-		// Mock audit result
-		const mockResult: AuditResult = {
-			id: "audit-" + Date.now(),
-			status: "completed",
-			contractAddress:
-				formData.walletAddress || "0x742d35Cc6482C06F25c85Dd7a630B95b9e1234567",
-			issues: [
-				{
-					severity: "critical",
-					title: "Reentrancy Vulnerability",
-					description:
-						"Function allows external calls before state changes, enabling reentrancy attacks that could drain contract funds.",
-					line: 45,
-					recommendation:
-						"Use the checks-effects-interactions pattern or implement reentrancy guards using OpenZeppelin's ReentrancyGuard.",
-					category: "Security",
-				},
-				{
-					severity: "high",
-					title: "Integer Overflow Risk",
-					description:
-						"Arithmetic operations may overflow without proper checks, potentially causing unexpected behavior.",
-					line: 78,
-					recommendation:
-						"Use SafeMath library or upgrade to Solidity 0.8+ which has built-in overflow protection.",
-					category: "Security",
-				},
-				{
-					severity: "medium",
-					title: "Missing Access Control",
-					description:
-						"Sensitive function lacks proper access restrictions, allowing unauthorized users to call critical functions.",
-					line: 92,
-					recommendation:
-						"Implement role-based access control using OpenZeppelin's AccessControl or Ownable contracts.",
-					category: "Access Control",
-				},
-				{
-					severity: "low",
-					title: "Gas Optimization Opportunity",
-					description:
-						"Loop can be optimized to reduce gas consumption and improve contract efficiency.",
-					line: 123,
-					recommendation:
-						"Consider caching array length and using unchecked arithmetic where safe to reduce gas costs.",
-					category: "Gas Optimization",
-				},
-			],
-			summary: {
-				totalIssues: 4,
-				criticalIssues: 1,
-				highIssues: 1,
-				mediumIssues: 1,
-				lowIssues: 1,
-				gasOptimizations: 3,
-				securityScore: 65,
-			},
-			gasAnalysis: {
-				estimatedGas: 2450000,
-				optimizationSuggestions: [
-					"Use packed structs to reduce storage costs",
-					"Implement lazy evaluation for expensive computations",
-					"Consider using events instead of storage for historical data",
-				],
-			},
-		};
-
-		setAuditResult(mockResult);
-		setIsSubmitting(false);
-		setShowResults(true);
+			const { status, auditId } = response.data;
+			if (status === "processing" && auditId) {
+				setAuditId(auditId);
+			} else {
+				throw new Error("Invalid API response");
+			}
+		} catch (err) {
+			setError("Failed to start audit: " + (err as Error).message);
+			setIsSubmitting(false);
+		}
 	};
+
+	const pollAuditStatus = async (id: string) => {
+		try {
+			const response = await axios.get(
+				`http://localhost:5000/api/status/${id}`
+			);
+			return response.data.status;
+		} catch (err) {
+			console.error("Status polling failed:", err);
+			return "error";
+		}
+	};
+
+	const fetchAuditReport = async (id: string): Promise<AuditResult | null> => {
+		try {
+			const response = await axios.get(
+				`http://localhost:5000/api/report/${id}`
+			);
+			const data: ApiAuditResponse = response.data;
+
+			if (data.status !== "completed") {
+				return null;
+			}
+
+			const issues = data.auditJson.map((issue) => ({
+				severity: issue.severity as "critical" | "high" | "medium" | "low",
+				title: issue.issue,
+				description: issue.issue,
+				line: issue.line,
+				recommendation: issue.recommendation,
+				category:
+					issue.severity === "low" &&
+					issue.recommendation.toLowerCase().includes("gas")
+						? "Gas Optimization"
+						: "Security",
+			}));
+
+			const summary = {
+				totalIssues: issues.length,
+				criticalIssues: issues.filter((i) => i.severity === "critical").length,
+				highIssues: issues.filter((i) => i.severity === "high").length,
+				mediumIssues: issues.filter((i) => i.severity === "medium").length,
+				lowIssues: issues.filter((i) => i.severity === "low").length,
+				gasOptimizations: data.gasOptimizations?.suggestions?.length || 0,
+				securityScore: calculateSecurityScore(issues),
+			};
+
+			const gasAnalysis = {
+				estimatedGas: data.gasOptimizations?.estimatedGas || 0,
+				optimizationSuggestions:
+					data.gasOptimizations?.suggestions?.map(
+						(s) =>
+							`${s.description} (Line ${
+								s.line
+							}, ~${s.estimatedSavings.toLocaleString()} gas saved)`
+					) || [],
+			};
+
+			return {
+				id: data.id,
+				status: data.status,
+				contractAddress: data.wallet,
+				issues,
+				summary,
+				gasAnalysis,
+			};
+		} catch (err) {
+			console.error("Report fetching failed:", err);
+			setError("Failed to fetch audit report: " + (err as Error).message);
+			return null;
+		}
+	};
+
+	const calculateSecurityScore = (issues: any[]) => {
+		const severityWeights = {
+			critical: 30,
+			high: 20,
+			medium: 10,
+			low: 5,
+		};
+		let score = 100;
+		issues.forEach((issue) => {
+			score -=
+				severityWeights[issue.severity as keyof typeof severityWeights] || 5;
+		});
+		return Math.max(0, score);
+	};
+
+	useEffect(() => {
+		let interval: NodeJS.Timeout;
+
+		if (auditId && isSubmitting) {
+			interval = setInterval(async () => {
+				const status = await pollAuditStatus(auditId);
+				if (status === "completed") {
+					const report = await fetchAuditReport(auditId);
+					if (report) {
+						setAuditResult(report);
+						setShowResults(true);
+						setIsSubmitting(false);
+						clearInterval(interval);
+					}
+				} else if (status === "error") {
+					setError("Audit failed. Please try again.");
+					setIsSubmitting(false);
+					clearInterval(interval);
+				}
+			}, 5000);
+		}
+
+		return () => clearInterval(interval);
+	}, [auditId, isSubmitting]);
 
 	const handleInputChange = (
 		e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -170,9 +257,32 @@ const AuditPage: React.FC = () => {
 		navigator.clipboard.writeText(text);
 	};
 
-	if (showResults && auditResult) {
-		return (
-			<div className="min-h-screen pt-24 pb-12">
+	const handleDownloadReport = async () => {
+		if (!auditId) return;
+		try {
+			const response = await axios.get(
+				`http://localhost:5000/api/report/${auditId}/pdf`,
+				{
+					responseType: "blob",
+				}
+			);
+			const url = window.URL.createObjectURL(new Blob([response.data]));
+			const link = document.createElement("a");
+			link.href = url;
+			link.setAttribute("download", `audit-${auditId}.pdf`);
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			window.URL.revokeObjectURL(url);
+		} catch (err) {
+			setError("Failed to download PDF: " + (err as Error).message);
+		}
+	};
+
+	return (
+		<div className="min-h-screen pt-24 pb-12">
+			<MouseTracker />
+			{showResults && auditResult ? (
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<motion.div
 						initial={{ opacity: 0, y: 30 }}
@@ -205,6 +315,13 @@ const AuditPage: React.FC = () => {
 								</div>
 							)}
 						</div>
+
+						{/* Error Display */}
+						{error && (
+							<div className="mb-8 p-4 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-xl">
+								{error}
+							</div>
+						)}
 
 						{/* Security Score */}
 						<div className="mb-12">
@@ -273,6 +390,7 @@ const AuditPage: React.FC = () => {
 							<motion.button
 								whileHover={{ scale: 1.05 }}
 								whileTap={{ scale: 0.95 }}
+								onClick={handleDownloadReport}
 								className="flex items-center px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors btn-hover"
 							>
 								<Download className="mr-2 h-5 w-5" />
@@ -291,10 +409,17 @@ const AuditPage: React.FC = () => {
 							<motion.button
 								whileHover={{ scale: 1.05 }}
 								whileTap={{ scale: 0.95 }}
-								onClick={() => setShowResults(false)}
-								className="flex items-center px-6 py-3 glass rounded-xl hover:shadow-glow transition-all duration-300"
+								onClick={() => {
+									setShowResults(false);
+									setAuditId(null);
+									setAuditResult(null);
+									setError(null);
+								}}
+								className="flex items-center px-6 py-3 glass rounded-xl hover:shadow-glow transition-all duration-300 
+             text-gray-900 dark:text-white 
+             border border-gray-300 dark:border-gray-600"
 							>
-								<Upload className="mr-2 h-5 w-5" />
+								<Upload className="mr-2 h-5 w-5 text-gray-900 dark:text-white" />
 								New Audit
 							</motion.button>
 						</div>
@@ -489,18 +614,25 @@ const AuditPage: React.FC = () => {
 											Optimization Suggestions
 										</h3>
 										<div className="space-y-4">
-											{auditResult.gasAnalysis.optimizationSuggestions.map(
-												(suggestion, index) => (
-													<div
-														key={index}
-														className="flex items-start space-x-3"
-													>
-														<div className="w-2 h-2 bg-primary-500 rounded-full mt-2" />
-														<span className="text-gray-700 dark:text-gray-300">
-															{suggestion}
-														</span>
-													</div>
+											{auditResult.gasAnalysis.optimizationSuggestions.length >
+											0 ? (
+												auditResult.gasAnalysis.optimizationSuggestions.map(
+													(suggestion, index) => (
+														<div
+															key={index}
+															className="flex items-start space-x-3"
+														>
+															<div className="w-2 h-2 bg-primary-500 rounded-full mt-2" />
+															<span className="text-gray-700 dark:text-gray-300">
+																{suggestion}
+															</span>
+														</div>
+													)
 												)
+											) : (
+												<p className="text-gray-600 dark:text-gray-300">
+													No gas optimization suggestions found.
+												</p>
 											)}
 										</div>
 									</GlassCard>
@@ -509,96 +641,97 @@ const AuditPage: React.FC = () => {
 						</div>
 					</motion.div>
 				</div>
-			</div>
-		);
-	}
+			) : (
+				<div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+					<motion.div
+						initial={{ opacity: 0, y: 30 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ duration: 0.8 }}
+					>
+						<div className="text-center mb-12">
+							<h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+								Smart Contract Audit
+							</h1>
+							<p className="text-xl text-gray-600 dark:text-gray-300">
+								Upload your Solidity contract for comprehensive AI-powered
+								security analysis
+							</p>
+						</div>
 
-	return (
-		<div className="min-h-screen pt-24 pb-12">
-			<MouseTracker />
-			<div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-				<motion.div
-					initial={{ opacity: 0, y: 30 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.8 }}
-				>
-					<div className="text-center mb-12">
-						<h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
-							Smart Contract Audit
-						</h1>
-						<p className="text-xl text-gray-600 dark:text-gray-300">
-							Upload your Solidity contract for comprehensive AI-powered
-							security analysis
-						</p>
-					</div>
-
-					<GlassCard className="p-8 md:p-12">
-						{isSubmitting ? (
-							<div className="text-center py-16">
-								<LoadingSpinner
-									size="lg"
-									text="Analyzing your smart contract..."
-								/>
-								<div className="mt-12 space-y-4">
-									<motion.div
-										initial={{ opacity: 0 }}
-										animate={{ opacity: 1 }}
-										transition={{ delay: 1 }}
-										className="text-sm text-gray-600 dark:text-gray-400"
-									>
-										🔍 Scanning for vulnerabilities...
-									</motion.div>
-									<motion.div
-										initial={{ opacity: 0 }}
-										animate={{ opacity: 1 }}
-										transition={{ delay: 2 }}
-										className="text-sm text-gray-600 dark:text-gray-400"
-									>
-										🛡️ Checking security patterns...
-									</motion.div>
-									<motion.div
-										initial={{ opacity: 0 }}
-										animate={{ opacity: 1 }}
-										transition={{ delay: 3 }}
-										className="text-sm text-gray-600 dark:text-gray-400"
-									>
-										📊 Generating comprehensive report...
-									</motion.div>
-								</div>
-							</div>
-						) : (
-							<form onSubmit={handleSubmit} className="space-y-8">
-								{/* Wallet Address */}
-								<div>
-									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-										Wallet Address (Optional)
-									</label>
-									<input
-										type="text"
-										name="walletAddress"
-										value={formData.walletAddress}
-										onChange={handleInputChange}
-										placeholder="0x742d35Cc6482C06F25c85Dd7a630B95b9e1234567"
-										className="w-full px-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+						<GlassCard className="p-8 md:p-12">
+							{isSubmitting ? (
+								<div className="text-center py-16">
+									<LoadingSpinner
+										size="lg"
+										text="Analyzing your smart contract..."
 									/>
-									<p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-										Provide a wallet address to automatically detect and audit
-										deployed contracts
-									</p>
+									<div className="mt-12 space-y-4">
+										<motion.div
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											transition={{ delay: 1 }}
+											className="text-sm text-gray-600 dark:text-gray-400"
+										>
+											🔍 Scanning for vulnerabilities...
+										</motion.div>
+										<motion.div
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											transition={{ delay: 2 }}
+											className="text-sm text-gray-600 dark:text-gray-400"
+										>
+											🛡️ Checking security patterns...
+										</motion.div>
+										<motion.div
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											transition={{ delay: 3 }}
+											className="text-sm text-gray-600 dark:text-gray-400"
+										>
+											📝 Generating comprehensive report...
+										</motion.div>
+									</div>
 								</div>
+							) : (
+								<form onSubmit={handleSubmit} className="space-y-8">
+									{/* Error Display */}
+									{error && (
+										<div className="p-4 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-xl">
+											{error}
+										</div>
+									)}
 
-								{/* Solidity Code */}
-								<div>
-									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-										Solidity Code *
-									</label>
-									<textarea
-										name="solidityCode"
-										value={formData.solidityCode}
-										onChange={handleInputChange}
-										required
-										rows={16}
-										placeholder={`pragma solidity ^0.8.0;
+									{/* Wallet Address */}
+									<div>
+										<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+											Wallet Address (Optional)
+										</label>
+										<input
+											type="text"
+											name="walletAddress"
+											value={formData.walletAddress}
+											onChange={handleInputChange}
+											placeholder="0x742d35Cc6482C06F25c85Dd7a630B95b9e1234567"
+											className="w-full px-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+										/>
+										<p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+											Provide a wallet address to automatically detect and audit
+											deployed contracts
+										</p>
+									</div>
+
+									{/* Solidity Code */}
+									<div>
+										<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+											Solidity Code *
+										</label>
+										<textarea
+											name="solidityCode"
+											value={formData.solidityCode}
+											onChange={handleInputChange}
+											required
+											rows={16}
+											placeholder={`pragma solidity ^0.8.0;
 
 contract MyContract {
     // Paste your Solidity code here...
@@ -615,53 +748,55 @@ contract MyContract {
         payable(msg.sender).transfer(amount);
     }
 }`}
-										className="w-full px-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 font-mono text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none"
-									/>
-								</div>
+											className="w-full px-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 font-mono text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none"
+										/>
+									</div>
 
-								{/* Email */}
-								<div>
-									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-										Email (Optional)
-									</label>
-									<input
-										type="email"
-										name="email"
-										value={formData.email}
-										onChange={handleInputChange}
-										placeholder="your@email.com"
-										className="w-full px-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-									/>
-									<p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-										Receive audit results and updates via email
-									</p>
-								</div>
+									{/* Email */}
+									<div>
+										<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+											Email (Optional)
+										</label>
+										<input
+											type="email"
+											name="email"
+											value={formData.email}
+											onChange={handleInputChange}
+											placeholder="your@email.com"
+											className="w-full px-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+										/>
+										<p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+											Receive audit results and updates via email
+										</p>
+									</div>
 
-								{/* Submit Button */}
-								<motion.button
-									type="submit"
-									whileHover={{ scale: 1.02 }}
-									whileTap={{ scale: 0.98 }}
-									disabled={!formData.solidityCode.trim()}
-									className="w-full flex items-center justify-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl hover:from-primary-700 hover:to-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-glow-lg btn-hover"
-								>
-									<Shield className="mr-2 h-5 w-5" />
-									Run Security Audit
-								</motion.button>
+									{/* Submit Button */}
+									<motion.button
+										type="submit"
+										whileHover={{ scale: 1.02 }}
+										whileTap={{ scale: 0.98 }}
+										disabled={!formData.solidityCode.trim()}
+										className="w-full flex items-center justify-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl hover:from-primary-700 hover:to-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-glow-lg btn-hover"
+									>
+										<Shield className="mr-2 h-5 w-5" />
+										Run Security Audit
+									</motion.button>
 
-								<div className="text-center space-y-2 text-sm text-gray-500 dark:text-gray-400">
-									<p>
-										🔒 Your code is analyzed securely and never stored
-										permanently
-									</p>
-									<p>⚡ Average analysis time: 30-60 seconds</p>
-									<p>🎯 AI-powered detection with 99.9% accuracy</p>
-								</div>
-							</form>
-						)}
-					</GlassCard>
-				</motion.div>
-			</div>
+									<div className="text-center space-y-2 text-sm text-gray-500 dark:text-gray-400">
+										<p>
+											🔒 Your code is analyzed securely and never stored
+											permanently
+										</p>
+										<p>⏱️ Average analysis time: 30-60 seconds</p>
+										<p>🤖 AI-powered detection with 99.9% accuracy</p>
+										<p>Auditing larger contracts may take longer time</p>
+									</div>
+								</form>
+							)}
+						</GlassCard>
+					</motion.div>
+				</div>
+			)}
 		</div>
 	);
 };
