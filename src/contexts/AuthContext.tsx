@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 			email,
 			password,
 			options: {
-				data: { name },
+				emailRedirectTo: `${window.location.origin}/audit`,
 			},
 		});
 		setIsLoading(false);

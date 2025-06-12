@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
 	Mail,
 	Lock,
@@ -25,13 +25,13 @@ const SignupPage: React.FC = () => {
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [error, setError] = useState("");
-
+	const [success, setSuccess] = useState("");
 	const { signup, isLoading } = useAuth();
-	const navigate = useNavigate();
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
+		setSuccess("");
 
 		if (formData.password !== formData.confirmPassword) {
 			setError("Passwords do not match");
@@ -43,15 +43,31 @@ const SignupPage: React.FC = () => {
 			return;
 		}
 
-		const success = await signup(
-			formData.email,
-			formData.password,
-			formData.name
-		);
-		if (success) {
-			navigate("/dashboard");
-		} else {
-			setError("Failed to create account. Please try again.");
+		try {
+			const success = await signup(
+				formData.email,
+				formData.password,
+				formData.name
+			);
+			if (success) {
+				setSuccess("Please check your email to confirm your account.");
+				setFormData({
+					name: "",
+					email: "",
+					password: "",
+					confirmPassword: "",
+				});
+			} else {
+				setError("Failed to create account. Please try again.");
+			}
+		} catch (err: any) {
+			if (err.message.includes("User already registered")) {
+				setError(
+					"Email already in use. Please try a different email or sign in."
+				);
+			} else {
+				setError(err.message || "Failed to create account. Please try again.");
+			}
 		}
 	};
 
@@ -125,33 +141,42 @@ const SignupPage: React.FC = () => {
 									{error}
 								</motion.div>
 							)}
+							{success && (
+								<motion.div
+									initial={{ opacity: 0, x: -20 }}
+									animate={{ opacity: 1, x: 0 }}
+									className="p-4 bg-green-100 dark:bg-green-900/20 border border-green-600 dark:border-green-700 rounded-xl text-green-700 dark:text-green-300 dark:text-white text-sm"
+								>
+									{success}
+								</motion.div>
+							)}
 
 							{/* Name */}
 							<div>
-								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
 									Full Name
 								</label>
 								<div className="relative">
-									<User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+									<User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
 									<input
 										type="text"
 										name="name"
 										value={formData.name}
 										onChange={handleInputChange}
 										required
-										placeholder="John Doe"
-										className="w-full pl-12 pr-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+										placeholder="Name"
+										className="w-full pl-10 pr-2 py-2 text-sm glass rounded-xl border border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
 									/>
 								</div>
 							</div>
 
 							{/* Email */}
 							<div>
-								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
 									Email Address
 								</label>
 								<div className="relative">
-									<Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+									<Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
 									<input
 										type="email"
 										name="email"
@@ -159,18 +184,18 @@ const SignupPage: React.FC = () => {
 										onChange={handleInputChange}
 										required
 										placeholder="your@email.com"
-										className="w-full pl-12 pr-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+										className="w-full pl-10 pr-2 py-2 text-sm glass rounded-xl border border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
 									/>
 								</div>
 							</div>
 
 							{/* Password */}
 							<div>
-								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
 									Password
 								</label>
 								<div className="relative">
-									<Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+									<Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
 									<input
 										type={showPassword ? "text" : "password"}
 										name="password"
@@ -178,12 +203,12 @@ const SignupPage: React.FC = () => {
 										onChange={handleInputChange}
 										required
 										placeholder="••••••••"
-										className="w-full pl-12 pr-12 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+										className="w-full pl-10 pr-10 py-2 text-sm glass rounded-xl border border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
 									/>
 									<button
 										type="button"
 										onClick={() => setShowPassword(!showPassword)}
-										className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+										className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
 									>
 										{showPassword ? (
 											<EyeOff className="h-5 w-5" />
@@ -196,11 +221,11 @@ const SignupPage: React.FC = () => {
 
 							{/* Confirm Password */}
 							<div>
-								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
 									Confirm Password
 								</label>
 								<div className="relative">
-									<Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+									<Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
 									<input
 										type={showConfirmPassword ? "text" : "password"}
 										name="confirmPassword"
@@ -208,12 +233,12 @@ const SignupPage: React.FC = () => {
 										onChange={handleInputChange}
 										required
 										placeholder="••••••••"
-										className="w-full pl-12 pr-12 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+										className="w-full pl-10 pr-10 py-2 text-sm glass rounded-xl border border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
 									/>
 									<button
 										type="button"
 										onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-										className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+										className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
 									>
 										{showConfirmPassword ? (
 											<EyeOff className="h-5 w-5" />
@@ -230,7 +255,7 @@ const SignupPage: React.FC = () => {
 								whileHover={{ scale: 1.02 }}
 								whileTap={{ scale: 0.98 }}
 								disabled={isLoading}
-								className="w-full flex items-center justify-center px-6 py-4 text-white bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl hover:from-primary-700 hover:to-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-medium shadow-lg hover:shadow-glow-lg btn-hover"
+								className="w-full flex items-center justify-center px-6 py-3 text-sm text-white bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl hover:from-primary-700 hover:to-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-medium shadow-lg hover:shadow-glow-lg btn-hover"
 							>
 								{isLoading ? (
 									<LoadingSpinner size="sm" />
@@ -260,20 +285,20 @@ const SignupPage: React.FC = () => {
 								</a>
 							</div>
 						</form>
-					</GlassCard>
 
-					{/* Sign In Link */}
-					<div className="text-center mt-8">
-						<p className="text-gray-600 dark:text-gray-300">
-							Already have an account?{" "}
-							<Link
-								to="/login"
-								className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
-							>
-								Sign in
-							</Link>
-						</p>
-					</div>
+						{/* Sign In Link */}
+						<div className="text-center mt-6">
+							<p className="text-sm text-gray-600 dark:text-gray-300">
+								Already have an account?{" "}
+								<Link
+									to="/login"
+									className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
+								>
+									Sign in
+								</Link>
+							</p>
+						</div>
+					</GlassCard>
 				</motion.div>
 			</div>
 		</div>

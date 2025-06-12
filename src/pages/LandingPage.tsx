@@ -152,10 +152,10 @@ const LandingPage: React.FC = () => {
 			{/* Mouse Tracker */}
 			<MouseTracker />
 
-			{/* Hero Section */}
+			{/* Hero Section - Increased top padding to prevent overlap */}
 			<section
 				ref={heroRef}
-				className="relative min-h-screen flex items-center justify-center overflow-hidden"
+				className="relative min-h-screen flex items-center justify-center overflow-hidden pt-32 md:pt-24"
 			>
 				{/* Clean Gradient Background */}
 				<div className="absolute inset-0">
@@ -215,20 +215,20 @@ const LandingPage: React.FC = () => {
 							initial={{ opacity: 0, scale: 0.8 }}
 							animate={{ opacity: 1, scale: 1 }}
 							transition={{ duration: 0.6, delay: 0.2 }}
-							className="mb-8"
+							className="mb-6 md:mb-8"
 						>
-							<div className="inline-flex items-center px-6 py-3 rounded-full bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-lg mb-6 group hover:scale-105 transition-all duration-300">
+							<div className="inline-flex items-center px-4 md:px-6 py-2 md:py-3 rounded-full bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-lg mb-4 md:mb-6 group hover:scale-105 transition-all duration-300">
 								<Sparkles className="h-4 w-4 text-blue-600 mr-2" />
-								<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+								<span className="text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300">
 									AI-Powered Smart Contract Security
 								</span>
 								<ArrowRight className="h-4 w-4 ml-2 text-blue-600 group-hover:translate-x-1 transition-transform" />
 							</div>
 						</motion.div>
 
-						{/* Clean Typography */}
+						{/* Clean Typography - Responsive sizing */}
 						<motion.h1
-							className="text-5xl md:text-7xl lg:text-8xl font-bold mb-8 leading-[0.9] tracking-tight"
+							className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-bold mb-6 md:mb-8 leading-[0.9] tracking-tight"
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.8, delay: 0.3 }}
@@ -240,9 +240,9 @@ const LandingPage: React.FC = () => {
 							</span>
 						</motion.h1>
 
-						{/* Clean Subtitle */}
+						{/* Clean Subtitle - Responsive sizing */}
 						<motion.p
-							className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-12 max-w-4xl mx-auto leading-relaxed"
+							className="text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-300 mb-8 md:mb-12 max-w-4xl mx-auto leading-relaxed"
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.8, delay: 0.4 }}
@@ -257,7 +257,7 @@ const LandingPage: React.FC = () => {
 
 						{/* Clean CTA Buttons */}
 						<motion.div
-							className="flex flex-col sm:flex-row gap-6 justify-center mb-16"
+							className="flex flex-col sm:flex-row gap-4 md:gap-6 justify-center mb-12 md:mb-16"
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.8, delay: 0.5 }}
@@ -265,7 +265,7 @@ const LandingPage: React.FC = () => {
 							<InteractiveCard intensity={1.5}>
 								<Link
 									to="/audit"
-									className="inline-flex items-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 group"
+									className="inline-flex items-center px-6 md:px-8 py-3 md:py-4 text-base md:text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 group cursor-pointer"
 								>
 									<Shield className="mr-2 h-5 w-5" />
 									Run Your First Audit
@@ -276,7 +276,7 @@ const LandingPage: React.FC = () => {
 							<InteractiveCard>
 								<Link
 									to="/dashboard"
-									className="inline-flex items-center px-8 py-4 text-lg font-semibold text-gray-700 dark:text-gray-300 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 rounded-2xl hover:bg-white/90 dark:hover:bg-gray-800/90 transition-all duration-300"
+									className="inline-flex items-center px-6 md:px-8 py-3 md:py-4 text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 rounded-2xl hover:bg-white/90 dark:hover:bg-gray-800/90 transition-all duration-300 cursor-pointer"
 								>
 									<Play className="mr-2 h-5 w-5" />
 									View Dashboard
@@ -286,21 +286,21 @@ const LandingPage: React.FC = () => {
 
 						{/* Clean Stats */}
 						<motion.div
-							className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
+							className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 max-w-4xl mx-auto"
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.8, delay: 0.6 }}
 						>
 							{stats.map((stat, index) => (
 								<InteractiveCard key={index}>
-									<div className="text-center group p-4 rounded-xl bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200/30 dark:border-gray-700/30">
+									<div className="text-center group p-3 md:p-4 rounded-xl bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200/30 dark:border-gray-700/30">
 										<div className="flex items-center justify-center mb-2 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
 											{stat.icon}
 										</div>
-										<div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-1">
+										<div className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">
 											{stat.value}
 										</div>
-										<div className="text-sm text-gray-600 dark:text-gray-400">
+										<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
 											{stat.label}
 										</div>
 									</div>
@@ -579,7 +579,7 @@ const LandingPage: React.FC = () => {
 									<InteractiveCard intensity={2}>
 										<Link
 											to="/audit"
-											className="inline-flex items-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 group"
+											className="inline-flex items-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 group cursor-pointer"
 										>
 											<Shield className="mr-2 h-5 w-5" />
 											Start Your First Audit
@@ -625,7 +625,7 @@ const LandingPage: React.FC = () => {
 									<InteractiveCard key={index}>
 										<a
 											href={social.href}
-											className="p-3 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-lg"
+											className="p-3 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-lg cursor-pointer"
 										>
 											{social.icon}
 										</a>
@@ -649,7 +649,7 @@ const LandingPage: React.FC = () => {
 									<li key={index}>
 										<Link
 											to={link.href}
-											className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+											className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
 										>
 											{link.label}
 										</Link>
@@ -673,7 +673,7 @@ const LandingPage: React.FC = () => {
 									<li key={index}>
 										<a
 											href={link.href}
-											className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+											className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
 										>
 											{link.label}
 										</a>

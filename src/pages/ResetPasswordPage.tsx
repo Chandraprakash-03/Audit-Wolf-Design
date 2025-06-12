@@ -1,33 +1,66 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, Shield, ArrowRight } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Lock, Shield, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { supabase } from "../db/supabase";
 import GlassCard from "../components/ui/GlassCard";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import MouseTracker from "../components/ui/MouseTracker";
 
-const LoginPage: React.FC = () => {
+const ResetPasswordPage: React.FC = () => {
 	const [formData, setFormData] = useState({
-		email: "",
 		password: "",
+		confirmPassword: "",
 	});
 	const [showPassword, setShowPassword] = useState(false);
+	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
-
-	const { login, isLoading } = useAuth();
+	const [success, setSuccess] = useState("");
 	const navigate = useNavigate();
+	const location = useLocation();
+
+	// Check URL for access_token on mount
+	useEffect(() => {
+		const params = new URLSearchParams(location.hash.replace("#", ""));
+		const token = params.get("access_token");
+
+		if (!token) {
+			setError(
+				"Invalid or missing reset token. Please request a new reset link."
+			);
+		}
+	}, [location]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
+		setSuccess("");
+		setIsLoading(true);
 
-		const success = await login(formData.email, formData.password);
-		if (success) {
-			localStorage.setItem("email", formData.email);
-			navigate("/dashboard");
+		if (formData.password !== formData.confirmPassword) {
+			setError("Passwords do not match");
+			setIsLoading(false);
+			return;
+		}
+
+		if (formData.password.length < 6) {
+			setError("Password must be at least 6 characters long");
+			setIsLoading(false);
+			return;
+		}
+
+		const { error } = await supabase.auth.updateUser({
+			password: formData.password,
+		});
+
+		setIsLoading(false);
+
+		if (error) {
+			setError(error.message || "Failed to reset password. Please try again.");
 		} else {
-			setError("Invalid email or password");
+			setSuccess("Password reset successfully! Redirecting to login...");
+			setTimeout(() => navigate("/login"), 3000);
 		}
 	};
 
@@ -83,10 +116,10 @@ const LoginPage: React.FC = () => {
 							</div>
 						</motion.div>
 						<h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3">
-							Welcome Back
+							Set New Password
 						</h1>
 						<p className="text-gray-600 dark:text-gray-300">
-							Sign in to your Audit Wolf account
+							Enter your new password to continue
 						</p>
 					</div>
 
@@ -101,30 +134,20 @@ const LoginPage: React.FC = () => {
 									{error}
 								</motion.div>
 							)}
+							{success && (
+								<motion.div
+									initial={{ opacity: 0, x: -20 }}
+									animate={{ opacity: 1, x: 0 }}
+									className="p-4 bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-700 rounded-xl text-green-700 dark:text-green-300 text-sm"
+								>
+									{success}
+								</motion.div>
+							)}
 
-							{/* Email */}
+							{/* New Password */}
 							<div>
-								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-									Email Address
-								</label>
-								<div className="relative">
-									<Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-									<input
-										type="email"
-										name="email"
-										value={formData.email}
-										onChange={handleInputChange}
-										required
-										placeholder="your@email.com"
-										className="w-full pl-12 pr-4 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-									/>
-								</div>
-							</div>
-
-							{/* Password */}
-							<div>
-								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-									Password
+								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+									New Password
 								</label>
 								<div className="relative">
 									<Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -140,9 +163,39 @@ const LoginPage: React.FC = () => {
 									<button
 										type="button"
 										onClick={() => setShowPassword(!showPassword)}
-										className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+										className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
 									>
 										{showPassword ? (
+											<EyeOff className="h-5 w-5" />
+										) : (
+											<Eye className="h-5 w-5" />
+										)}
+									</button>
+								</div>
+							</div>
+
+							{/* Confirm Password */}
+							<div>
+								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+									Confirm New Password
+								</label>
+								<div className="relative">
+									<Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+									<input
+										type={showConfirmPassword ? "text" : "password"}
+										name="confirmPassword"
+										value={formData.confirmPassword}
+										onChange={handleInputChange}
+										required
+										placeholder="••••••••"
+										className="w-full pl-12 pr-12 py-4 glass rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+									/>
+									<button
+										type="button"
+										onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+										className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+									>
+										{showConfirmPassword ? (
 											<EyeOff className="h-5 w-5" />
 										) : (
 											<Eye className="h-5 w-5" />
@@ -163,40 +216,27 @@ const LoginPage: React.FC = () => {
 									<LoadingSpinner size="sm" />
 								) : (
 									<>
-										Sign In
+										Reset Password
 										<ArrowRight className="ml-2 h-5 w-5" />
 									</>
 								)}
 							</motion.button>
-
-							{/* Forgot Password Link */}
-							<div className="text-center">
-								<a
-									href="#"
-									className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-								>
-									Forgot your password?
-								</a>
-							</div>
 						</form>
-					</GlassCard>
 
-					{/* Sign Up Link */}
-					<div className="text-center mt-8">
-						<p className="text-gray-600 dark:text-gray-300">
-							Don't have an account?{" "}
+						{/* Back to Login */}
+						<div className="text-center mt-6">
 							<Link
-								to="/signup"
-								className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
+								to="/login"
+								className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
 							>
-								Sign up for free
+								Back to Sign In
 							</Link>
-						</p>
-					</div>
+						</div>
+					</GlassCard>
 				</motion.div>
 			</div>
 		</div>
 	);
 };
 
-export default LoginPage;
+export default ResetPasswordPage;

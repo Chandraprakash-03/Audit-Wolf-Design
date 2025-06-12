@@ -51,6 +51,7 @@ const MouseTracker: React.FC = () => {
 	const [trail, setTrail] = useState<TrailPoint[]>([]);
 	const [particles, setParticles] = useState<Particle[]>([]);
 	const [isVisible, setIsVisible] = useState(false);
+	const [isOverInteractive, setIsOverInteractive] = useState(false);
 
 	const trailIdRef = useRef(0);
 	const particleIdRef = useRef(0);
@@ -58,6 +59,36 @@ const MouseTracker: React.FC = () => {
 	const lastBurstTime = useRef(0);
 	const lastUpdateTime = useRef(0);
 	const lastParticleUpdate = useRef(0);
+
+	// Check if mouse is over interactive elements
+	const checkInteractiveElement = useCallback((target: Element | null) => {
+		if (!target) return false;
+
+		// Check if element or any parent is interactive
+		let element = target as Element;
+		while (element && element !== document.body) {
+			const tagName = element.tagName.toLowerCase();
+			const role = element.getAttribute("role");
+			const isClickable =
+				element.hasAttribute("onclick") ||
+				element.classList.contains("cursor-pointer") ||
+				window.getComputedStyle(element).cursor === "pointer";
+
+			if (
+				tagName === "a" ||
+				tagName === "button" ||
+				tagName === "input" ||
+				tagName === "textarea" ||
+				tagName === "select" ||
+				role === "button" ||
+				isClickable
+			) {
+				return true;
+			}
+			element = element.parentElement as Element;
+		}
+		return false;
+	}, []);
 
 	// Memoized particle creation to avoid recreation
 	const createParticleBurst = useCallback(
@@ -129,6 +160,10 @@ const MouseTracker: React.FC = () => {
 		const updateMousePosition = (e: MouseEvent) => {
 			const now = Date.now();
 
+			// Check if mouse is over interactive element
+			const isInteractive = checkInteractiveElement(e.target as Element);
+			setIsOverInteractive(isInteractive);
+
 			// Throttle updates
 			if (now - lastUpdateTime.current < UPDATE_THROTTLE) return;
 			lastUpdateTime.current = now;
@@ -136,6 +171,9 @@ const MouseTracker: React.FC = () => {
 			const newPosition = { x: e.clientX, y: e.clientY };
 			setMousePosition(newPosition);
 			setIsVisible(true);
+
+			// Skip particle effects if over interactive elements
+			if (isInteractive) return;
 
 			const velocityX = newPosition.x - prevPosition.current.x;
 			const velocityY = newPosition.y - prevPosition.current.y;
@@ -190,6 +228,7 @@ const MouseTracker: React.FC = () => {
 
 		const handleMouseLeave = () => {
 			setIsVisible(false);
+			setIsOverInteractive(false);
 		};
 
 		const animate = () => {
@@ -215,7 +254,12 @@ const MouseTracker: React.FC = () => {
 			cancelAnimationFrame(animationFrame);
 			cancelAnimationFrame(particleAnimationFrame);
 		};
-	}, [createParticleBurst, updateParticles, cleanupTrail]);
+	}, [
+		createParticleBurst,
+		updateParticles,
+		cleanupTrail,
+		checkInteractiveElement,
+	]);
 
 	// Memoized particle styles to prevent recalculation
 	const particleElements = useMemo(
@@ -321,22 +365,32 @@ const MouseTracker: React.FC = () => {
 
 	return (
 		<div className="fixed inset-0 pointer-events-none z-50">
-			{/* Optimized Particle System */}
-			{particleElements}
+			{/* Only show particles and trail when not over interactive elements */}
+			{!isOverInteractive && (
+				<>
+					{/* Optimized Particle System */}
+					{particleElements}
 
-			{/* Simplified cursor glow */}
+					{/* Optimized Trail */}
+					{trailElements}
+				</>
+			)}
+
+			{/* Simplified cursor glow - always visible but reduced when over interactive elements */}
 			<motion.div
 				className="absolute w-6 h-6 rounded-full pointer-events-none will-change-transform"
 				style={{
 					left: mousePosition.x - 12,
 					top: mousePosition.y - 12,
-					background:
-						"radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, rgba(139, 92, 246, 0.25) 40%, transparent 70%)",
+					background: isOverInteractive
+						? "radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.1) 40%, transparent 70%)"
+						: "radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, rgba(139, 92, 246, 0.25) 40%, transparent 70%)",
 					filter: "blur(5px)",
+					opacity: isOverInteractive ? 0.5 : 1,
 				}}
 				animate={{
-					scale: [1, 1.08, 1],
-					opacity: [0.4, 0.6, 0.4],
+					scale: isOverInteractive ? [0.8, 0.9, 0.8] : [1, 1.08, 1],
+					opacity: isOverInteractive ? [0.3, 0.5, 0.3] : [0.4, 0.6, 0.4],
 				}}
 				transition={{
 					duration: 2.2,
@@ -345,40 +399,39 @@ const MouseTracker: React.FC = () => {
 				}}
 			/>
 
-			{/* Inner cursor (Tilted Triangle) */}
-			<motion.div
-				className="absolute pointer-events-none will-change-transform"
-				style={{
-					left: mousePosition.x - 8, // Center the larger triangle
-					top: mousePosition.y - 14, // Offset to align tip with mouse
-					width: 18,
-					height: 20,
-					clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)", // Upward triangle
-					background:
-						"linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(99, 102, 241, 0.8))",
-					boxShadow: "0 0 14px rgba(99, 102, 241, 0.5)",
-					transform: "rotate(-25deg)", // Tilt like Windows cursor
-				}}
-			/>
+			{/* Inner cursor (Tilted Triangle) - hidden when over interactive elements */}
+			{!isOverInteractive && (
+				<motion.div
+					className="absolute pointer-events-none will-change-transform"
+					style={{
+						left: mousePosition.x - 8,
+						top: mousePosition.y - 14,
+						width: 18,
+						height: 20,
+						clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+						background:
+							"linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(99, 102, 241, 0.8))",
+						boxShadow: "0 0 14px rgba(99, 102, 241, 0.5)",
+						transform: "rotate(-25deg)",
+					}}
+				/>
+			)}
 
-			{/* Optimized Trail */}
-			{trailElements}
-
-			{/* Primary ambient glow */}
+			{/* Primary ambient glow - reduced when over interactive elements */}
 			<motion.div
 				className="absolute w-28 h-28 rounded-full pointer-events-none will-change-transform"
 				style={{
 					left: mousePosition.x - 56,
 					top: mousePosition.y - 56,
 					background: `radial-gradient(circle, 
-						hsla(270, 55%, 60%, 0.08) 0%, 
-						hsla(300, 65%, 50%, 0.04) 50%, 
+						hsla(270, 55%, 60%, ${isOverInteractive ? 0.04 : 0.08}) 0%, 
+						hsla(300, 65%, 50%, ${isOverInteractive ? 0.02 : 0.04}) 50%, 
 						transparent 80%)`,
 					filter: "blur(18px)",
 				}}
 				animate={{
-					scale: [1, 1.1, 1],
-					opacity: [0.25, 0.4, 0.25],
+					scale: isOverInteractive ? [0.8, 0.9, 0.8] : [1, 1.1, 1],
+					opacity: isOverInteractive ? [0.15, 0.25, 0.15] : [0.25, 0.4, 0.25],
 				}}
 				transition={{
 					duration: 2.8,
@@ -387,21 +440,21 @@ const MouseTracker: React.FC = () => {
 				}}
 			/>
 
-			{/* Secondary ambient glow */}
+			{/* Secondary ambient glow - reduced when over interactive elements */}
 			<motion.div
 				className="absolute w-40 h-40 rounded-full pointer-events-none will-change-transform"
 				style={{
 					left: mousePosition.x - 80,
 					top: mousePosition.y - 80,
 					background: `radial-gradient(circle, 
-						hsla(240, 60%, 70%, 0.06) 0%, 
-						hsla(270, 70%, 60%, 0.03) 60%, 
+						hsla(240, 60%, 70%, ${isOverInteractive ? 0.03 : 0.06}) 0%, 
+						hsla(270, 70%, 60%, ${isOverInteractive ? 0.015 : 0.03}) 60%, 
 						transparent 90%)`,
 					filter: "blur(24px)",
 				}}
 				animate={{
-					scale: [1, 1.15, 1],
-					opacity: [0.15, 0.3, 0.15],
+					scale: isOverInteractive ? [0.8, 0.95, 0.8] : [1, 1.15, 1],
+					opacity: isOverInteractive ? [0.1, 0.2, 0.1] : [0.15, 0.3, 0.15],
 				}}
 				transition={{
 					duration: 3.5,

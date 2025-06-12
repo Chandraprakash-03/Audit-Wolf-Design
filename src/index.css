@@ -194,18 +194,36 @@ body {
 	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
-/* Interactive elements should show cursor */
+/* Interactive elements should show cursor and override custom cursor */
 a,
 button,
 [role="button"],
 input,
 textarea,
-select {
+select,
+.cursor-pointer {
 	cursor: pointer !important;
 }
 
 input,
 textarea {
+	cursor: text !important;
+}
+
+/* Specific cursor overrides for interactive areas */
+a:hover,
+button:hover,
+[role="button"]:hover,
+input:hover,
+textarea:hover,
+select:hover,
+.cursor-pointer:hover {
+	cursor: pointer !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
 	cursor: text !important;
 }
 

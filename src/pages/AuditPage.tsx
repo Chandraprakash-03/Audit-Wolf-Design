@@ -96,7 +96,7 @@ const AuditPage: React.FC = () => {
 			const response = await axios.post("http://localhost:5000/api/audit", {
 				wallet: formData.walletAddress,
 				code: formData.solidityCode,
-				email: formData.email,
+				email: formData.email || localStorage.getItem("email"),
 			});
 
 			const { status, auditId } = response.data;
