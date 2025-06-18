@@ -59,7 +59,7 @@ const AuditReportPage: React.FC = () => {
 
 			try {
 				const response = await fetch(
-					`http://localhost:5000/api/audit/report/${id}`
+					`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/audit-report/${id}`
 				);
 
 				if (!response.ok) {

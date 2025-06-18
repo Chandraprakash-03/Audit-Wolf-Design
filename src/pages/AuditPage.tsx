@@ -72,6 +72,9 @@ interface ApiAuditResponse {
 	completedAt?: string;
 }
 
+const authData = localStorage.getItem("sb-siindibbfajlgqhkzumw-auth-token");
+const accessToken = authData ? JSON.parse(authData).access_token : null;
+
 const AuditPage: React.FC = () => {
 	const [formData, setFormData] = useState({
 		walletAddress: "",
@@ -93,11 +96,20 @@ const AuditPage: React.FC = () => {
 		setError(null);
 
 		try {
-			const response = await axios.post("http://localhost:5000/api/audit", {
-				wallet: formData.walletAddress,
-				code: formData.solidityCode,
-				email: formData.email || localStorage.getItem("email"),
-			});
+			const response = await axios.post(
+				"https://siindibbfajlgqhkzumw.supabase.co/functions/v1/audit",
+				{
+					wallet: formData.walletAddress,
+					code: formData.solidityCode,
+					email: formData.email || localStorage.getItem("email"),
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+						"Content-Type": "application/json",
+					},
+				}
+			);
 
 			const { status, auditId } = response.data;
 			if (status === "processing" && auditId) {
@@ -113,8 +125,15 @@ const AuditPage: React.FC = () => {
 
 	const pollAuditStatus = async (id: string) => {
 		try {
-			const response = await axios.get(
-				`http://localhost:5000/api/status/${id}`
+			const response = await axios.post(
+				`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/status/${id}`,
+				{},
+				{
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+						"Content-Type": "application/json",
+					},
+				}
 			);
 			return response.data.status;
 		} catch (err) {
@@ -125,8 +144,15 @@ const AuditPage: React.FC = () => {
 
 	const fetchAuditReport = async (id: string): Promise<AuditResult | null> => {
 		try {
-			const response = await axios.get(
-				`http://localhost:5000/api/report/${id}`
+			const response = await axios.post(
+				`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/report/${id}`,
+				{},
+				{
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+						"Content-Type": "application/json",
+					},
+				}
 			);
 			const data: ApiAuditResponse = response.data;
 
