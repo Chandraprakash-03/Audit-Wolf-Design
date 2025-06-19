@@ -10,6 +10,7 @@ import LandingPage from "./pages/LandingPage";
 import AuditPage from "./pages/AuditPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import AuditReportPage from "./pages/AuditReportPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -47,6 +48,14 @@ function App() {
 									element={
 										<ProtectedRoute>
 											<DashboardPage />
+										</ProtectedRoute>
+									}
+								/>
+								<Route
+									path="/audit-report/:id"
+									element={
+										<ProtectedRoute>
+											<AuditReportPage />
 										</ProtectedRoute>
 									}
 								/>

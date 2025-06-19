@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
 	FileText,
 	Clock,
@@ -18,11 +18,12 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import GlassCard from "../components/ui/GlassCard";
 import MouseTracker from "../components/ui/MouseTracker";
+import LoadingSpinner from "../components/ui/LoadingSpinner";
 
 interface Audit {
 	id: string;
 	contractName: string;
-	status: "pending" | "completed" | "failed";
+	status: "pending" | "completed" | "failed" | "error";
 	createdAt: string;
 	completedAt?: string;
 	issuesFound: number;
@@ -32,59 +33,114 @@ interface Audit {
 	reportUrl?: string;
 }
 
+const authData = localStorage.getItem("sb-siindibbfajlgqhkzumw-auth-token");
+const accessToken = authData ? JSON.parse(authData).access_token : null;
+
 const DashboardPage: React.FC = () => {
 	const { user } = useAuth();
+	const navigate = useNavigate();
 	const [filter, setFilter] = useState<
-		"all" | "pending" | "completed" | "failed"
+		"all" | "pending" | "completed" | "failed" | "error"
 	>("all");
+	const [audits, setAudits] = useState<Audit[]>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState("");
 
-	// Mock audit data
-	const [audits] = useState<Audit[]>([
-		{
-			id: "1",
-			contractName: "TokenContract.sol",
-			status: "completed",
-			createdAt: "2025-01-05T10:30:00Z",
-			completedAt: "2025-01-05T10:32:15Z",
-			issuesFound: 3,
-			severity: "high",
-			securityScore: 75,
-			gasOptimizations: 2,
-			reportUrl: "#",
-		},
-		{
-			id: "2",
-			contractName: "NFTMarketplace.sol",
-			status: "completed",
-			createdAt: "2025-01-04T15:20:00Z",
-			completedAt: "2025-01-04T15:23:42Z",
-			issuesFound: 1,
-			severity: "medium",
-			securityScore: 88,
-			gasOptimizations: 4,
-			reportUrl: "#",
-		},
-		{
-			id: "3",
-			contractName: "StakingContract.sol",
-			status: "pending",
-			createdAt: "2025-01-05T14:45:00Z",
-			issuesFound: 0,
-			severity: "low",
-		},
-		{
-			id: "4",
-			contractName: "DeFiProtocol.sol",
-			status: "completed",
-			createdAt: "2025-01-03T09:15:00Z",
-			completedAt: "2025-01-03T09:18:30Z",
-			issuesFound: 5,
-			severity: "critical",
-			securityScore: 45,
-			gasOptimizations: 1,
-			reportUrl: "#",
-		},
-	]);
+	useEffect(() => {
+		if (!user?.email) {
+			setError("Please sign in to view your audits.");
+			setIsLoading(false);
+			return;
+		}
+
+		const fetchAudits = async () => {
+			setIsLoading(true);
+			setError("");
+
+			try {
+				const response = await fetch(
+					`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/user-audit/${user.email}`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${accessToken}`,
+						},
+					}
+				);
+
+				if (response.status === 204) {
+					setAudits([]);
+					return;
+				}
+
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+				}
+
+				const data = await response.json();
+				const mappedAudits: Audit[] = data.data.map((audit: any) => ({
+					id: audit.id,
+					contractName: audit.wallet || `Audit-${audit.id.slice(0, 8)}`,
+					status: audit.status as "pending" | "completed" | "failed" | "error",
+					createdAt: audit.createdAt,
+					completedAt: audit.completedAt,
+					issuesFound: audit.auditJson ? audit.auditJson.length : 0,
+					severity: audit.auditJson
+						? audit.auditJson.reduce((max: string, issue: any) => {
+								const severityOrder = ["critical", "high", "medium", "low"];
+								return severityOrder.indexOf(issue.severity.toLowerCase()) <
+									severityOrder.indexOf(max.toLowerCase())
+									? issue.severity.toLowerCase()
+									: max.toLowerCase();
+						  }, "low")
+						: "low",
+					securityScore: undefined, // Not provided in API response, can be calculated if needed
+					gasOptimizations: audit.gasOptimizations
+						? audit.gasOptimizations.suggestions.length
+						: 0,
+					reportUrl:
+						audit.status === "completed"
+							? `/api/audit/report/${audit.id}`
+							: undefined,
+				}));
+
+				setAudits(mappedAudits);
+			} catch (err: any) {
+				setError(err.message || "Failed to fetch audits. Please try again.");
+			} finally {
+				setIsLoading(false);
+			}
+		};
+
+		fetchAudits();
+	}, [user?.email]);
+
+	const handleViewReport = (auditId: string) => {
+		navigate(`/audit-report/${auditId}`);
+	};
+
+	const handleDownloadReport = async (auditId: string) => {
+		try {
+			const response = await fetch(`/api/audit/report/${auditId}/pdf`);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+			}
+
+			const blob = await response.blob();
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `audit-${auditId}.pdf`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			window.URL.revokeObjectURL(url);
+		} catch (err: any) {
+			setError(err.message || "Failed to download report. Please try again.");
+		}
+	};
 
 	const filteredAudits = audits.filter((audit) =>
 		filter === "all" ? true : audit.status === filter
@@ -97,6 +153,7 @@ const DashboardPage: React.FC = () => {
 			case "completed":
 				return <CheckCircle className="h-5 w-5 text-green-500" />;
 			case "failed":
+			case "error":
 				return <AlertTriangle className="h-5 w-5 text-red-500" />;
 			default:
 				return null;
@@ -139,12 +196,14 @@ const DashboardPage: React.FC = () => {
 		completed: audits.filter((a) => a.status === "completed").length,
 		pending: audits.filter((a) => a.status === "pending").length,
 		critical: audits.filter((a) => a.severity === "critical").length,
-		avgScore: Math.round(
-			audits
-				.filter((a) => a.securityScore)
-				.reduce((acc, a) => acc + (a.securityScore || 0), 0) /
-				audits.filter((a) => a.securityScore).length
-		),
+		avgScore: audits.filter((a) => a.securityScore).length
+			? Math.round(
+					audits
+						.filter((a) => a.securityScore)
+						.reduce((acc, a) => acc + (a.securityScore || 0), 0) /
+						audits.filter((a) => a.securityScore).length
+			  )
+			: 0,
 	};
 
 	return (
@@ -182,230 +241,262 @@ const DashboardPage: React.FC = () => {
 						</motion.div>
 					</div>
 
-					{/* Stats Cards */}
-					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
-						<GlassCard className="p-6 text-center">
-							<div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-								{stats.total}
-							</div>
-							<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
-								<FileText className="h-4 w-4 mr-1" />
-								Total Audits
-							</div>
+					{/* Error Message */}
+					{error && (
+						<motion.div
+							initial={{ opacity: 0, x: -20 }}
+							animate={{ opacity: 1, x: 0 }}
+							className="p-4 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-xl text-red-700 dark:text-red-300 text-sm mb-6"
+						>
+							{error}
+						</motion.div>
+					)}
+
+					{/* Loading State */}
+					{isLoading && (
+						<GlassCard className="p-16 text-center">
+							<LoadingSpinner size="lg" />
+							<p className="text-gray-600 dark:text-gray-300 mt-4">
+								Loading your audits...
+							</p>
 						</GlassCard>
+					)}
 
-						<GlassCard className="p-6 text-center">
-							<div className="text-3xl font-bold text-green-600 mb-2">
-								{stats.completed}
-							</div>
-							<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
-								<CheckCircle className="h-4 w-4 mr-1" />
-								Completed
-							</div>
-						</GlassCard>
+					{!isLoading && (
+						<>
+							{/* Stats Cards */}
+							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
+								<GlassCard className="p-6 text-center">
+									<div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+										{stats.total}
+									</div>
+									<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
+										<FileText className="h-4 w-4 mr-1" />
+										Total Audits
+									</div>
+								</GlassCard>
 
-						<GlassCard className="p-6 text-center">
-							<div className="text-3xl font-bold text-yellow-600 mb-2">
-								{stats.pending}
-							</div>
-							<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
-								<Clock className="h-4 w-4 mr-1" />
-								Pending
-							</div>
-						</GlassCard>
+								<GlassCard className="p-6 text-center">
+									<div className="text-3xl font-bold text-green-600 mb-2">
+										{stats.completed}
+									</div>
+									<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
+										<CheckCircle className="h-4 w-4 mr-1" />
+										Completed
+									</div>
+								</GlassCard>
 
-						<GlassCard className="p-6 text-center">
-							<div className="text-3xl font-bold text-red-600 mb-2">
-								{stats.critical}
-							</div>
-							<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
-								<AlertTriangle className="h-4 w-4 mr-1" />
-								Critical Issues
-							</div>
-						</GlassCard>
+								<GlassCard className="p-6 text-center">
+									<div className="text-3xl font-bold text-yellow-600 mb-2">
+										{stats.pending}
+									</div>
+									<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
+										<Clock className="h-4 w-4 mr-1" />
+										Pending
+									</div>
+								</GlassCard>
 
-						<GlassCard className="p-6 text-center">
-							<div
-								className={`text-3xl font-bold mb-2 ${getScoreColor(
-									stats.avgScore
-								)}`}
-							>
-								{stats.avgScore}/100
-							</div>
-							<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
-								<Shield className="h-4 w-4 mr-1" />
-								Avg Score
-							</div>
-						</GlassCard>
-					</div>
+								<GlassCard className="p-6 text-center">
+									<div className="text-3xl font-bold text-red-600 mb-2">
+										{stats.critical}
+									</div>
+									<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
+										<AlertTriangle className="h-4 w-4 mr-1" />
+										Critical Issues
+									</div>
+								</GlassCard>
 
-					{/* Filters */}
-					<div className="flex flex-wrap gap-4 mb-8">
-						<div className="flex items-center space-x-2">
-							<Filter className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-							<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-								Filter:
-							</span>
-						</div>
-
-						{["all", "pending", "completed", "failed"].map((status) => (
-							<motion.button
-								key={status}
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-								onClick={() => setFilter(status as any)}
-								className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-									filter === status
-										? "bg-primary-600 text-white shadow-lg"
-										: "glass hover:shadow-glow text-gray-600 dark:text-gray-400"
-								}`}
-							>
-								{status.charAt(0).toUpperCase() + status.slice(1)}
-							</motion.button>
-						))}
-					</div>
-
-					{/* Audits List */}
-					<div className="space-y-6">
-						<h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-							Recent Audits
-						</h2>
-
-						{filteredAudits.length === 0 ? (
-							<GlassCard className="p-16 text-center">
-								<FileText className="h-16 w-16 text-gray-400 mx-auto mb-6" />
-								<h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-									No audits found
-								</h3>
-								<p className="text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
-									{filter === "all"
-										? "You haven't run any audits yet. Start securing your smart contracts today!"
-										: `No ${filter} audits found. Try adjusting your filter.`}
-								</p>
-								<motion.div
-									whileHover={{ scale: 1.05 }}
-									whileTap={{ scale: 0.95 }}
-								>
-									<Link
-										to="/audit"
-										className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-xl hover:from-primary-700 hover:to-secondary-700 transition-all duration-300 btn-hover"
+								<GlassCard className="p-6 text-center">
+									<div
+										className={`text-3xl font-bold mb-2 ${getScoreColor(
+											stats.avgScore
+										)}`}
 									>
-										<Plus className="mr-2 h-5 w-5" />
-										Run Your First Audit
-									</Link>
-								</motion.div>
-							</GlassCard>
-						) : (
-							filteredAudits.map((audit, index) => (
-								<motion.div
-									key={audit.id}
-									initial={{ opacity: 0, x: -30 }}
-									animate={{ opacity: 1, x: 0 }}
-									transition={{ duration: 0.5, delay: index * 0.1 }}
-								>
-									<GlassCard className="p-6 hover:shadow-glow-lg transition-all duration-300">
-										<div className="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
-											<div className="flex items-center space-x-4">
-												<div className="p-3 bg-primary-100 dark:bg-primary-900/20 rounded-xl">
-													<FileText className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-												</div>
+										{stats.avgScore}/100
+									</div>
+									<div className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-center">
+										<Shield className="h-4 w-4 mr-1" />
+										Avg Score
+									</div>
+								</GlassCard>
+							</div>
 
-												<div>
-													<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-														{audit.contractName}
-													</h3>
-													<div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-														<div className="flex items-center space-x-1">
-															<Calendar className="h-4 w-4" />
-															<span>{formatDate(audit.createdAt)}</span>
+							{/* Filters */}
+							<div className="flex flex-wrap gap-4 mb-8">
+								<div className="flex items-center space-x-2">
+									<Filter className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+									<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+										Filter:
+									</span>
+								</div>
+
+								{["all", "pending", "completed", "failed", "error"].map(
+									(status) => (
+										<motion.button
+											key={status}
+											whileHover={{ scale: 1.05 }}
+											whileTap={{ scale: 0.95 }}
+											onClick={() => setFilter(status as any)}
+											className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+												filter === status
+													? "bg-primary-600 text-white shadow-lg"
+													: "glass hover:shadow-glow text-gray-600 dark:text-gray-400"
+											}`}
+										>
+											{status.charAt(0).toUpperCase() + status.slice(1)}
+										</motion.button>
+									)
+								)}
+							</div>
+
+							{/* Audits List */}
+							<div className="space-y-6">
+								<h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+									Recent Audits
+								</h2>
+
+								{filteredAudits.length === 0 ? (
+									<GlassCard className="p-16 text-center">
+										<FileText className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+										<h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+											No audits found
+										</h3>
+										<p className="text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
+											{filter === "all"
+												? "You haven't run any audits yet. Start securing your smart contracts today!"
+												: `No ${filter} audits found. Try adjusting your filter.`}
+										</p>
+										<motion.div
+											whileHover={{ scale: 1.05 }}
+											whileTap={{ scale: 0.95 }}
+										>
+											<Link
+												to="/audit"
+												className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-xl hover:from-primary-700 hover:to-secondary-700 transition-all duration-300 btn-hover"
+											>
+												<Plus className="mr-2 h-5 w-5" />
+												Run Your First Audit
+											</Link>
+										</motion.div>
+									</GlassCard>
+								) : (
+									filteredAudits.map((audit, index) => (
+										<motion.div
+											key={audit.id}
+											initial={{ opacity: 0, x: -30 }}
+											animate={{ opacity: 1, x: 0 }}
+											transition={{ duration: 0.5, delay: index * 0.1 }}
+										>
+											<GlassCard className="p-6 hover:shadow-glow-lg transition-all duration-300">
+												<div className="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
+													<div className="flex items-center space-x-4">
+														<div className="p-3 bg-primary-100 dark:bg-primary-900/20 rounded-xl">
+															<FileText className="h-6 w-6 text-primary-600 dark:text-primary-400" />
 														</div>
-														{audit.completedAt && (
-															<span>
-																Completed in{" "}
-																{Math.round(
-																	(new Date(audit.completedAt).getTime() -
-																		new Date(audit.createdAt).getTime()) /
-																		1000
+
+														<div>
+															<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+																{audit.contractName}
+															</h3>
+															<div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+																<div className="flex items-center space-x-1">
+																	<Calendar className="h-4 w-4" />
+																	<span>{formatDate(audit.createdAt)}</span>
+																</div>
+																{audit.completedAt && (
+																	<span>
+																		Completed in{" "}
+																		{Math.round(
+																			(new Date(audit.completedAt).getTime() -
+																				new Date(audit.createdAt).getTime()) /
+																				1000
+																		)}
+																		s
+																	</span>
 																)}
-																s
+															</div>
+														</div>
+													</div>
+
+													<div className="flex flex-wrap items-center gap-4">
+														{/* Status */}
+														<div className="flex items-center space-x-2">
+															{getStatusIcon(audit.status)}
+															<span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize">
+																{audit.status}
 															</span>
+														</div>
+
+														{/* Security Score */}
+														{audit.securityScore && (
+															<div className="flex items-center space-x-2">
+																<Shield className="h-4 w-4 text-gray-500" />
+																<span
+																	className={`text-sm font-medium ${getScoreColor(
+																		audit.securityScore
+																	)}`}
+																>
+																	{audit.securityScore}/100
+																</span>
+															</div>
+														)}
+
+														{/* Issues */}
+														{audit.status === "completed" && (
+															<span
+																className={`px-3 py-1 rounded-full text-xs font-medium border ${getSeverityColor(
+																	audit.severity
+																)}`}
+															>
+																{audit.issuesFound}{" "}
+																{audit.issuesFound === 1 ? "Issue" : "Issues"}
+															</span>
+														)}
+
+														{/* Gas Optimizations */}
+														{audit.gasOptimizations &&
+															audit.gasOptimizations > 0 && (
+																<div className="flex items-center space-x-1 text-sm text-blue-600 dark:text-blue-400">
+																	<Zap className="h-4 w-4" />
+																	<span>
+																		{audit.gasOptimizations} optimizations
+																	</span>
+																</div>
+															)}
+
+														{/* Actions */}
+														{audit.status === "completed" && (
+															<div className="flex space-x-2">
+																<motion.button
+																	whileHover={{ scale: 1.05 }}
+																	whileTap={{ scale: 0.95 }}
+																	onClick={() => handleViewReport(audit.id)}
+																	className="p-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+																	title="View Report"
+																>
+																	<Eye className="h-5 w-5" />
+																</motion.button>
+
+																<motion.button
+																	whileHover={{ scale: 1.05 }}
+																	whileTap={{ scale: 0.95 }}
+																	onClick={() => handleDownloadReport(audit.id)}
+																	className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+																	title="Download Report"
+																>
+																	<Download className="h-5 w-5" />
+																</motion.button>
+															</div>
 														)}
 													</div>
 												</div>
-											</div>
-
-											<div className="flex flex-wrap items-center gap-4">
-												{/* Status */}
-												<div className="flex items-center space-x-2">
-													{getStatusIcon(audit.status)}
-													<span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize">
-														{audit.status}
-													</span>
-												</div>
-
-												{/* Security Score */}
-												{audit.securityScore && (
-													<div className="flex items-center space-x-2">
-														<Shield className="h-4 w-4 text-gray-500" />
-														<span
-															className={`text-sm font-medium ${getScoreColor(
-																audit.securityScore
-															)}`}
-														>
-															{audit.securityScore}/100
-														</span>
-													</div>
-												)}
-
-												{/* Issues */}
-												{audit.status === "completed" && (
-													<span
-														className={`px-3 py-1 rounded-full text-xs font-medium border ${getSeverityColor(
-															audit.severity
-														)}`}
-													>
-														{audit.issuesFound}{" "}
-														{audit.issuesFound === 1 ? "Issue" : "Issues"}
-													</span>
-												)}
-
-												{/* Gas Optimizations */}
-												{audit.gasOptimizations && (
-													<div className="flex items-center space-x-1 text-sm text-blue-600 dark:text-blue-400">
-														<Zap className="h-4 w-4" />
-														<span>{audit.gasOptimizations} optimizations</span>
-													</div>
-												)}
-
-												{/* Actions */}
-												{audit.status === "completed" && (
-													<div className="flex space-x-2">
-														<motion.button
-															whileHover={{ scale: 1.05 }}
-															whileTap={{ scale: 0.95 }}
-															className="p-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
-															title="View Report"
-														>
-															<Eye className="h-5 w-5" />
-														</motion.button>
-
-														<motion.button
-															whileHover={{ scale: 1.05 }}
-															whileTap={{ scale: 0.95 }}
-															className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-															title="Download Report"
-														>
-															<Download className="h-5 w-5" />
-														</motion.button>
-													</div>
-												)}
-											</div>
-										</div>
-									</GlassCard>
-								</motion.div>
-							))
-						)}
-					</div>
+											</GlassCard>
+										</motion.div>
+									))
+								)}
+							</div>
+						</>
+					)}
 				</motion.div>
 			</div>
 		</div>

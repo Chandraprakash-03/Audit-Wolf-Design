@@ -39,6 +39,9 @@ interface AuditReport {
 	} | null;
 }
 
+const authData = localStorage.getItem("sb-siindibbfajlgqhkzumw-auth-token");
+const accessToken = authData ? JSON.parse(authData).access_token : null;
+
 const AuditReportPage: React.FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const { user } = useAuth();
@@ -59,7 +62,14 @@ const AuditReportPage: React.FC = () => {
 
 			try {
 				const response = await fetch(
-					`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/audit-report/${id}`
+					`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/audit-report/${id}`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${accessToken}`,
+						},
+					}
 				);
 
 				if (!response.ok) {
