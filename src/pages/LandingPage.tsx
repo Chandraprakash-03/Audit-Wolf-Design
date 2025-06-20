@@ -616,20 +616,25 @@ const LandingPage: React.FC = () => {
 								security analysis and reports for Solidity contracts. Secure
 								your DeFi projects with confidence.
 							</p>
-							<div className="flex space-x-4">
+							<div className="flex items-center space-x-4">
 								{[
-									{ icon: <Twitter className="h-5 w-5" />, href: "#" },
-									{ icon: <Github className="h-5 w-5" />, href: "#" },
-									{ icon: <Linkedin className="h-5 w-5" />, href: "#" },
+									{ icon: <Twitter className="h-5 w-5" />, href: "#", label: "Twitter" },
+									{ icon: <Github className="h-5 w-5" />, href: "#", label: "GitHub" },
+									{ icon: <Linkedin className="h-5 w-5" />, href: "#", label: "LinkedIn" },
 								].map((social, index) => (
-									<InteractiveCard key={index}>
+									<motion.div
+										key={index}
+										whileHover={{ scale: 1.1, y: -2 }}
+										whileTap={{ scale: 0.95 }}
+									>
 										<a
 											href={social.href}
-											className="p-3 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-lg cursor-pointer"
+											aria-label={social.label}
+											className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-600 transition-all duration-300 shadow-lg hover:shadow-xl cursor-pointer"
 										>
 											{social.icon}
 										</a>
-									</InteractiveCard>
+									</motion.div>
 								))}
 							</div>
 						</div>
