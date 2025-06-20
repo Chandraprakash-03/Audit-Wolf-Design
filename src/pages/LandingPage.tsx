@@ -24,6 +24,7 @@ import {
 import GlassCard from "../components/ui/GlassCard";
 import MouseTracker from "../components/ui/MouseTracker";
 import InteractiveCard from "../components/ui/InteractiveCard";
+import Logo from "../components/Layout/Logo";
 
 const LandingPage: React.FC = () => {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -603,9 +604,9 @@ const LandingPage: React.FC = () => {
 								<motion.div
 									whileHover={{ rotate: 360 }}
 									transition={{ duration: 0.6 }}
-									className="p-3 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500 shadow-lg"
+									className="p-3 rounded-2xl shadow-lg"
 								>
-									<Shield className="h-6 w-6 text-white" />
+									<Logo className="h-6 w-6 text-white" />
 								</motion.div>
 								<span className="text-2xl font-bold text-gray-900 dark:text-white">
 									Audit Wolf
@@ -618,9 +619,21 @@ const LandingPage: React.FC = () => {
 							</p>
 							<div className="flex items-center space-x-4">
 								{[
-									{ icon: <Twitter className="h-5 w-5" />, href: "#", label: "Twitter" },
-									{ icon: <Github className="h-5 w-5" />, href: "#", label: "GitHub" },
-									{ icon: <Linkedin className="h-5 w-5" />, href: "#", label: "LinkedIn" },
+									{
+										icon: <Twitter className="h-5 w-5" />,
+										href: "#",
+										label: "Twitter",
+									},
+									{
+										icon: <Github className="h-5 w-5" />,
+										href: "#",
+										label: "GitHub",
+									},
+									{
+										icon: <Linkedin className="h-5 w-5" />,
+										href: "#",
+										label: "LinkedIn",
+									},
 								].map((social, index) => (
 									<motion.div
 										key={index}
