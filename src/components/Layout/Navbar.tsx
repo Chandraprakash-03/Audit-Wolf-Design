@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
+import Logo from "./Logo";
 
 const Navbar: React.FC = () => {
 	const { theme, toggleTheme } = useTheme();
@@ -62,9 +63,9 @@ const Navbar: React.FC = () => {
 						<motion.div
 							whileHover={{ rotate: 360 }}
 							transition={{ duration: 0.6 }}
-							className="p-2 rounded-xl bg-gradient-to-r from-primary-500 to-secondary-500 group-hover:shadow-glow"
+							className="p-2 rounded-xl  from-primary-500 to-secondary-500 group-hover:shadow-glow"
 						>
-							<Shield className="h-6 w-6 text-white" />
+							<Logo className="h-6 w-6 text-white" />
 						</motion.div>
 						<span className="text-xl font-bold gradient-text">Audit Wolf</span>
 					</Link>

@@ -1,9 +1,10 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Shield, Sun, Moon, Menu, X, User, LogOut } from "lucide-react";
+import { Sun, Moon, Menu, X, User, LogOut } from "lucide-react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
+import Logo from "./Logo";
 
 const Header: React.FC = () => {
 	const { theme, toggleTheme } = useTheme();
@@ -31,7 +32,7 @@ const Header: React.FC = () => {
 					{/* Logo */}
 					<Link to="/" className="flex items-center space-x-2 group">
 						<div className="p-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 group-hover:from-purple-500 group-hover:to-blue-600 transition-all duration-300">
-							<Shield className="h-6 w-6 text-white" />
+							<Logo className="h-1 w-1 object-contain" />
 						</div>
 						<span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
 							Audit Wolf
