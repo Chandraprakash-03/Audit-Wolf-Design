@@ -1,6 +1,5 @@
-import nodemailer from "nodemailer";
-
 export default async function handler(req) {
+	const nodemailer = await import("nodemailer");
 	// Ensure JSON response for non-POST methods
 	if (req.method !== "POST") {
 		return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
