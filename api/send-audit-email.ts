@@ -16,13 +16,13 @@ export default async function handler(req: Request) {
 	const transporter = nodemailer.createTransport({
 		service: "gmail",
 		auth: {
-			user: process.env.VITE_EMAIL_USER,
-			pass: process.env.VITE_EMAIL_PASSWORD,
+			user: process.env.EMAIL_USER,
+			pass: process.env.EMAIL_PASSWORD,
 		},
 	});
 
 	const mailOptions = {
-		from: `"Audit Wolf" <${process.env.VITE_EMAIL_USER}>`,
+		from: `"Audit Wolf" <${process.env.EMAIL_USER}>`,
 		to,
 		subject: `Your Audit Report [Audit ID: ${auditId}]`,
 		html: `
