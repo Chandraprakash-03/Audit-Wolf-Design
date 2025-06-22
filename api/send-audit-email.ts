@@ -53,16 +53,31 @@ export default async function handler(req: Request): Promise<Response> {
 	}
 
 	try {
-		// Dynamically import nodemailer (CommonJS in ESM context)
+		// Dynamically import nodemailer
 		const { default: nodemailer } = await import("nodemailer");
 
-		const transporter = nodemailer.createTransport({
-			service: "gmail",
+		// Create transporter with more specific configuration
+		const transporter = nodemailer.createTransporter({
+			host: "smtp.gmail.com",
+			port: 587,
+			secure: false, // true for 465, false for other ports
 			auth: {
 				user: EMAIL_USER,
 				pass: EMAIL_PASSWORD,
 			},
+			// Add connection timeout and socket timeout
+			connectionTimeout: 10000, // 10 seconds
+			socketTimeout: 10000, // 10 seconds
+			// Pool connections for better performance
+			pool: true,
+			maxConnections: 1,
+			maxMessages: 1,
 		});
+
+		// Verify connection before sending
+		console.log("🔍 Verifying SMTP connection...");
+		await transporter.verify();
+		console.log("✅ SMTP connection verified");
 
 		const mailOptions = {
 			from: `"Audit Wolf" <${EMAIL_USER}>`,
@@ -77,14 +92,20 @@ export default async function handler(req: Request): Promise<Response> {
       `,
 		};
 
-		const timeoutPromise = new Promise(
-			(_, reject) =>
-				setTimeout(() => reject(new Error("Email send timeout")), 15000) // 15s max
+		// Reduce timeout to 25 seconds (well under Vercel's 60s limit)
+		const timeoutPromise = new Promise<never>((_, reject) =>
+			setTimeout(() => reject(new Error("Email send timeout after 25s")), 25000)
 		);
 
 		console.log("📤 Sending email to:", to);
+
+		// Race between sending email and timeout
 		await Promise.race([transporter.sendMail(mailOptions), timeoutPromise]);
+
 		console.log("✅ Email sent successfully");
+
+		// Close the transporter connection
+		transporter.close();
 
 		return new Response(JSON.stringify({ success: true }), {
 			status: 200,
@@ -92,8 +113,23 @@ export default async function handler(req: Request): Promise<Response> {
 		});
 	} catch (err: any) {
 		console.error("❌ Email send failed:", err.message);
+
+		// Return more specific error messages
+		let errorMessage = "Failed to send email";
+		if (err.message.includes("timeout")) {
+			errorMessage = "Email service timeout - please try again";
+		} else if (err.message.includes("auth")) {
+			errorMessage = "Email authentication failed";
+		} else if (err.message.includes("connection")) {
+			errorMessage = "Unable to connect to email service";
+		}
+
 		return new Response(
-			JSON.stringify({ error: `Failed to send email: ${err.message}` }),
+			JSON.stringify({
+				error: errorMessage,
+				details:
+					process.env.NODE_ENV === "development" ? err.message : undefined,
+			}),
 			{
 				status: 500,
 				headers: { "Content-Type": "application/json" },
