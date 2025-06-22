@@ -7,17 +7,20 @@ export async function sendAuditEmail({
 	pdfUrl: string;
 	auditId: string;
 }) {
-	const res = await fetch("/api/send-audit-email", {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({
-			to: email,
-			auditId,
-			downloadUrl: pdfUrl,
-		}),
-	});
+	const res = await fetch(
+		"https://audit-wolf-design.vercel.app/api/send-audit-email",
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				to: email,
+				auditId,
+				downloadUrl: pdfUrl,
+			}),
+		}
+	);
 
 	if (!res.ok) {
 		const err = await res.json();

@@ -18,6 +18,7 @@ import LoadingSpinner from "../components/ui/LoadingSpinner";
 import MouseTracker from "../components/ui/MouseTracker";
 import axios from "axios";
 import { supabase } from "../db/supabase";
+import { sendAuditEmail } from "../utils/email";
 
 interface AuditResult {
 	id: string;
@@ -201,7 +202,12 @@ const AuditPage: React.FC = () => {
 					.from("audit-reports")
 					.getPublicUrl(data.pdfUrl, { download: true });
 				pdfDownloadUrl = publicUrlData.publicUrl;
-				console.log("✅ Download URL:", pdfDownloadUrl);
+				alert(`✅ Download URL: ${pdfDownloadUrl}`);
+				await sendAuditEmail({
+					email: data.email || formData.email,
+					pdfUrl: pdfDownloadUrl,
+					auditId: data.id,
+				});
 			} else {
 				console.error("❌ Error: pdfUrl is undefined.");
 			}
