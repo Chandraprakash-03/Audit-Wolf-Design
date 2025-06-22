@@ -77,8 +77,14 @@ export default async function handler(req: Request): Promise<Response> {
       `,
 		};
 
-		// Send email
-		await transporter.sendMail(mailOptions);
+		const timeoutPromise = new Promise(
+			(_, reject) =>
+				setTimeout(() => reject(new Error("Email send timeout")), 15000) // 15s max
+		);
+
+		console.log("📤 Sending email to:", to);
+		await Promise.race([transporter.sendMail(mailOptions), timeoutPromise]);
+		console.log("✅ Email sent successfully");
 
 		return new Response(JSON.stringify({ success: true }), {
 			status: 200,
