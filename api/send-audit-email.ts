@@ -80,9 +80,12 @@ export default async function handler(req) {
 		});
 	} catch (err) {
 		console.error("Email send failed:", err.message);
-		return new Response(JSON.stringify({ error: "Failed to send email" }), {
-			status: 500,
-			headers: { "Content-Type": "application/json" },
-		});
+		return new Response(
+			JSON.stringify({ error: `Failed to send email: ${err.message}` }),
+			{
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			}
+		);
 	}
 }
