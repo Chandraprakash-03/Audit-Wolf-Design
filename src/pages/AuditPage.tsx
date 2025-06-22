@@ -17,6 +17,7 @@ import GlassCard from "../components/ui/GlassCard";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import MouseTracker from "../components/ui/MouseTracker";
 import axios from "axios";
+import { supabase } from "../db/supabase";
 
 interface AuditResult {
 	id: string;
@@ -70,6 +71,7 @@ interface ApiAuditResponse {
 	email?: string;
 	createdAt?: string;
 	completedAt?: string;
+	pdfUrl?: string;
 }
 
 const authData = localStorage.getItem("sb-siindibbfajlgqhkzumw-auth-token");
@@ -193,6 +195,16 @@ const AuditPage: React.FC = () => {
 							}, ~${s.estimatedSavings.toLocaleString()} gas saved)`
 					) || [],
 			};
+			let pdfDownloadUrl: string | undefined = undefined;
+			if (data.pdfUrl) {
+				const { data: publicUrlData } = supabase.storage
+					.from("audit-reports")
+					.getPublicUrl(data.pdfUrl, { download: true });
+				pdfDownloadUrl = publicUrlData.publicUrl;
+				console.log("✅ Download URL:", pdfDownloadUrl);
+			} else {
+				console.error("❌ Error: pdfUrl is undefined.");
+			}
 
 			return {
 				id: data.id,
