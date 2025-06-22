@@ -202,7 +202,7 @@ const AuditPage: React.FC = () => {
 					.from("audit-reports")
 					.getPublicUrl(data.pdfUrl, { download: true });
 				pdfDownloadUrl = publicUrlData.publicUrl;
-				alert(`✅ Download URL: ${pdfDownloadUrl}`);
+				// alert(`✅ Download URL: ${pdfDownloadUrl}`);
 				await sendAuditEmail({
 					email: data.email || formData.email,
 					pdfUrl: pdfDownloadUrl,
