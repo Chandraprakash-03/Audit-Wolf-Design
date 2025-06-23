@@ -7,8 +7,8 @@ export async function sendAuditEmail({
 	pdfUrl: string;
 	auditId: string;
 }) {
-	const res = await fetch(
-		"https://audit-wolf-design.vercel.app/api/send-audit-email",
+	const response = await fetch(
+		"https://email-microservice-oyan.onrender.com/send-email",
 		{
 			method: "POST",
 			headers: {
@@ -16,15 +16,22 @@ export async function sendAuditEmail({
 			},
 			body: JSON.stringify({
 				to: email,
-				auditId,
-				downloadUrl: pdfUrl,
+				subject: `Your Audit Report [Audit ID: ${auditId || "N/A"}]`,
+				html: `
+          <p>Hey 👋,</p>
+          <p>Your smart contract audit is complete!</p>
+          <p><a href="${pdfUrl}" target="_blank">📄 Download Audit Report</a></p>
+          <br />
+          <p>Thanks for using Audit Wolf 🐺</p>
+        `,
 			}),
 		}
 	);
 
-	if (!res.ok) {
-		const err = await res.json();
-		throw new Error(err.error || "Email failed");
+	if (!response.ok) {
+		const err = await response.text();
+		console.error("❌ Email send failed:", err);
+		throw new Error("Failed to send email");
 	}
 
 	return true;
