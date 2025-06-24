@@ -59,7 +59,7 @@ const DashboardPage: React.FC = () => {
 
 			try {
 				const response = await fetch(
-					`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/user-audit/${user.email}`,
+					`${import.meta.env.VITE_API_URL}user-audit/${user.email}`,
 					{
 						method: "POST",
 						headers: {

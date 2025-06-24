@@ -100,7 +100,7 @@ const AuditPage: React.FC = () => {
 
 		try {
 			const response = await axios.post(
-				"https://siindibbfajlgqhkzumw.supabase.co/functions/v1/audit",
+				`${import.meta.env.VITE_API_URL}audit`,
 				{
 					wallet: formData.walletAddress,
 					code: formData.solidityCode,
@@ -129,7 +129,7 @@ const AuditPage: React.FC = () => {
 	const pollAuditStatus = async (id: string) => {
 		try {
 			const response = await axios.post(
-				`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/status/${id}`,
+				`${import.meta.env.VITE_API_URL}status/${id}`,
 				{},
 				{
 					headers: {
@@ -148,7 +148,7 @@ const AuditPage: React.FC = () => {
 	const fetchAuditReport = async (id: string): Promise<AuditResult | null> => {
 		try {
 			const response = await axios.post(
-				`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/report/${id}`,
+				`${import.meta.env.VITE_API_URL}report/${id}`,
 				{},
 				{
 					headers: {

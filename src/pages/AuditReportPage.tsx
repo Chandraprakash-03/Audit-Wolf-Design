@@ -62,7 +62,7 @@ const AuditReportPage: React.FC = () => {
 
 			try {
 				const response = await fetch(
-					`https://siindibbfajlgqhkzumw.supabase.co/functions/v1/audit-report/${id}`,
+					`${import.meta.env.VITE_API_URL}audit-report/${id}`,
 					{
 						method: "POST",
 						headers: {
