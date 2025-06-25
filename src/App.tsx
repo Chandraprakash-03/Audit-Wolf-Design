@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import Navbar from "./components/Layout/Navbar";
+import BoltBadge from "./components/ui/BoltBadge";
 import LandingPage from "./pages/LandingPage";
 import AuditPage from "./pages/AuditPage";
 import LoginPage from "./pages/LoginPage";
@@ -62,6 +63,10 @@ function App() {
 								<Route path="*" element={<NotFoundPage />} />
 							</Routes>
 						</AnimatePresence>
+
+						{/* Bolt Badge - appears on all pages */}
+						<BoltBadge />
+
 						<SpeedInsights />
 						<Analytics />
 					</div>
