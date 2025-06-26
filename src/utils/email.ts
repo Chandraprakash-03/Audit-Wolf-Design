@@ -7,17 +7,15 @@ export async function sendAuditEmail({
 	pdfUrl: string;
 	auditId: string;
 }) {
-	const response = await fetch(
-		"https://email-microservice-oyan.onrender.com/send-email",
-		{
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				to: email,
-				subject: `Your Audit Report [Audit ID: ${auditId || "N/A"}]`,
-				html: `
+	const response = await fetch(`${import.meta.env.VITE_EMAIL_URL}/send-email`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			to: email,
+			subject: `Your Audit Report [Audit ID: ${auditId || "N/A"}]`,
+			html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -49,9 +47,8 @@ export async function sendAuditEmail({
 </body>
 </html>
 				`,
-			}),
-		}
-	);
+		}),
+	});
 
 	if (!response.ok) {
 		const err = await response.text();
