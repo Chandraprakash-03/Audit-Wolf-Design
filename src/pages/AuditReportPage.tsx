@@ -12,6 +12,7 @@ import { useAuth } from "../contexts/AuthContext";
 import GlassCard from "../components/ui/GlassCard";
 import MouseTracker from "../components/ui/MouseTracker";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
+import { supabase } from "../db/supabase";
 
 interface Vulnerability {
 	line: number;
@@ -62,7 +63,7 @@ const AuditReportPage: React.FC = () => {
 
 			try {
 				const response = await fetch(
-					`${import.meta.env.VITE_API_URL}audit-report/${id}`,
+					`${import.meta.env.VITE_API_URL}/audit-report/${id}`,
 					{
 						method: "POST",
 						headers: {
@@ -102,27 +103,25 @@ const AuditReportPage: React.FC = () => {
 				return "text-gray-600 bg-gray-100 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800";
 		}
 	};
-
 	const handleDownloadReport = async () => {
 		if (!id) return;
 		try {
-			const response = await fetch(`/api/audit/report/${id}/pdf`);
+			const fullPath = `${id}.pdf`;
+			const { data: publicUrlData } = supabase.storage
+				.from("audit-reports")
+				.getPublicUrl(fullPath, { download: true });
 
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-			}
+			const url = publicUrlData?.publicUrl;
+			if (!url) throw new Error("Public URL not found");
 
-			const blob = await response.blob();
-			const url = window.URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = `audit-${id}.pdf`;
-			document.body.appendChild(a);
-			a.click();
-			a.remove();
-			window.URL.revokeObjectURL(url);
-		} catch (err: any) {
-			setError(err.message || "Failed to download report. Please try again.");
+			const link = document.createElement("a");
+			link.href = url;
+			link.setAttribute("download", `audit-${id}.pdf`);
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+		} catch (err) {
+			setError("Failed to download PDF: " + (err as Error).message);
 		}
 	};
 

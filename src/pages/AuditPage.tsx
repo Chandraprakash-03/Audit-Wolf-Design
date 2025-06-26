@@ -13,6 +13,7 @@ import {
 	ExternalLink,
 	Zap,
 } from "lucide-react";
+import Confetti from "react-confetti";
 import GlassCard from "../components/ui/GlassCard";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import MouseTracker from "../components/ui/MouseTracker";
@@ -22,6 +23,8 @@ import { sendAuditEmail } from "../utils/email";
 
 interface AuditResult {
 	id: string;
+	email?: string;
+	pdfUrl?: string;
 	status: "pending" | "completed" | "failed";
 	contractAddress?: string;
 	issues: {
@@ -92,6 +95,14 @@ const AuditPage: React.FC = () => {
 	);
 	const [auditId, setAuditId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [emailSent, setEmailSent] = useState(false);
+	const [isStoring, setIsStoring] = useState(false);
+	const [storeResult, setStoreResult] = useState<{
+		ipfsHash: string;
+		txHash: string;
+	} | null>(null);
+	const [showConfetti, setShowConfetti] = useState(false);
+	const [showPopup, setShowPopup] = useState(false);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -100,18 +111,18 @@ const AuditPage: React.FC = () => {
 
 		try {
 			const response = await axios.post(
-				`${import.meta.env.VITE_API_URL}audit`,
+				`${import.meta.env.VITE_API_URL}/audit`,
 				{
 					wallet: formData.walletAddress,
 					code: formData.solidityCode,
 					email: formData.email || localStorage.getItem("email"),
-				},
-				{
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-						"Content-Type": "application/json",
-					},
 				}
+				// {
+				// 	headers: {
+				// 		Authorization: `Bearer ${accessToken}`,
+				// 		"Content-Type": "application/json",
+				// 	},
+				// }
 			);
 
 			const { status, auditId } = response.data;
@@ -129,7 +140,7 @@ const AuditPage: React.FC = () => {
 	const pollAuditStatus = async (id: string) => {
 		try {
 			const response = await axios.post(
-				`${import.meta.env.VITE_API_URL}status/${id}`,
+				`${import.meta.env.VITE_API_URL}/status/${id}`,
 				{},
 				{
 					headers: {
@@ -148,7 +159,7 @@ const AuditPage: React.FC = () => {
 	const fetchAuditReport = async (id: string): Promise<AuditResult | null> => {
 		try {
 			const response = await axios.post(
-				`${import.meta.env.VITE_API_URL}report/${id}`,
+				`${import.meta.env.VITE_API_URL}/report/${id}`,
 				{},
 				{
 					headers: {
@@ -198,16 +209,12 @@ const AuditPage: React.FC = () => {
 			};
 			let pdfDownloadUrl: string | undefined = undefined;
 			if (data.pdfUrl) {
+				const fullPath = `${data.id}.pdf`;
 				const { data: publicUrlData } = supabase.storage
 					.from("audit-reports")
-					.getPublicUrl(data.pdfUrl, { download: true });
-				pdfDownloadUrl = publicUrlData.publicUrl;
-				// alert(`✅ Download URL: ${pdfDownloadUrl}`);
-				await sendAuditEmail({
-					email: data.email || formData.email,
-					pdfUrl: pdfDownloadUrl,
-					auditId: data.id,
-				});
+					.getPublicUrl(fullPath, { download: true });
+
+				pdfDownloadUrl = publicUrlData?.publicUrl;
 			} else {
 				console.error("❌ Error: pdfUrl is undefined.");
 			}
@@ -219,6 +226,8 @@ const AuditPage: React.FC = () => {
 				issues,
 				summary,
 				gasAnalysis,
+				email: data.email,
+				pdfUrl: pdfDownloadUrl,
 			};
 		} catch (err) {
 			console.error("Report fetching failed:", err);
@@ -242,6 +251,44 @@ const AuditPage: React.FC = () => {
 		return Math.max(0, score);
 	};
 
+	const handleStoreOnBlockchain = async () => {
+		if (!auditResult || !auditId || isStoring) return;
+		setIsStoring(true);
+		setError(null);
+
+		try {
+			const response = await axios.post(
+				`${import.meta.env.VITE_API_URL}/store`,
+				{
+					id: auditId,
+					wallet: auditResult.contractAddress || formData.walletAddress,
+					code: formData.solidityCode,
+					auditText: JSON.stringify({
+						issues: auditResult.issues,
+						summary: auditResult.summary,
+						gasAnalysis: auditResult.gasAnalysis,
+					}),
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+						"Content-Type": "application/json",
+					},
+				}
+			);
+
+			const { ipfsHash, txHash } = response.data;
+			setStoreResult({ ipfsHash, txHash });
+			setShowConfetti(true);
+			setShowPopup(true);
+			setTimeout(() => setShowConfetti(false), 5000); // Stop confetti after 5 seconds
+		} catch (err) {
+			setError("Failed to store on blockchain: " + (err as Error).message);
+		} finally {
+			setIsStoring(false);
+		}
+	};
+
 	useEffect(() => {
 		let interval: NodeJS.Timeout;
 
@@ -251,10 +298,20 @@ const AuditPage: React.FC = () => {
 				if (status === "completed") {
 					const report = await fetchAuditReport(auditId);
 					if (report) {
+						console.log(report);
 						setAuditResult(report);
 						setShowResults(true);
 						setIsSubmitting(false);
 						clearInterval(interval);
+
+						if (!emailSent && report.pdfUrl && report.id && report.email) {
+							await sendAuditEmail({
+								email: report.email,
+								pdfUrl: report.pdfUrl,
+								auditId: report.id,
+							});
+							setEmailSent(true);
+						}
 					}
 				} else if (status === "error") {
 					setError("Audit failed. Please try again.");
@@ -304,28 +361,90 @@ const AuditPage: React.FC = () => {
 	const handleDownloadReport = async () => {
 		if (!auditId) return;
 		try {
-			const response = await axios.get(
-				`http://localhost:5000/api/report/${auditId}/pdf`,
-				{
-					responseType: "blob",
-				}
-			);
-			const url = window.URL.createObjectURL(new Blob([response.data]));
+			const fullPath = `${auditId}.pdf`;
+			const { data: publicUrlData } = supabase.storage
+				.from("audit-reports")
+				.getPublicUrl(fullPath, { download: true });
+
+			const url = publicUrlData?.publicUrl;
+			if (!url) throw new Error("Public URL not found");
+
 			const link = document.createElement("a");
 			link.href = url;
 			link.setAttribute("download", `audit-${auditId}.pdf`);
 			document.body.appendChild(link);
 			link.click();
 			document.body.removeChild(link);
-			window.URL.revokeObjectURL(url);
 		} catch (err) {
 			setError("Failed to download PDF: " + (err as Error).message);
 		}
 	};
 
 	return (
-		<div className="min-h-screen pt-24 pb-12">
+		<div className="min-h-screen pt-24 pb-12 relative">
 			<MouseTracker />
+			{showConfetti && (
+				<Confetti
+					width={window.innerWidth}
+					height={window.innerHeight}
+					recycle={false}
+					numberOfPieces={200}
+					tweenDuration={5000}
+				/>
+			)}
+			{showPopup && storeResult && (
+				<motion.div
+					initial={{ opacity: 0, scale: 0.8 }}
+					animate={{ opacity: 1, scale: 1 }}
+					className="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
+				>
+					<GlassCard className="p-8 max-w-md w-full">
+						<h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+							Successfully Stored on Blockchain
+						</h2>
+						<div className="mb-4">
+							<p className="text-gray-700 dark:text-gray-300 mb-2">
+								IPFS Hash:
+							</p>
+							<div className="flex items-center space-x-2">
+								<code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm break-all">
+									{storeResult.ipfsHash}
+								</code>
+								<button
+									onClick={() => copyToClipboard(storeResult.ipfsHash)}
+									className="p-1 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+								>
+									<Copy className="h-4 w-4" />
+								</button>
+							</div>
+						</div>
+						<div className="mb-6">
+							<p className="text-gray-700 dark:text-gray-300 mb-2">
+								Transaction Hash:
+							</p>
+							<div className="flex items-center space-x-2">
+								<code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm break-all">
+									{storeResult.txHash}
+								</code>
+								<button
+									onClick={() => copyToClipboard(storeResult.txHash)}
+									className="p-1 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+								>
+									<Copy className="h-4 w-4" />
+								</button>
+							</div>
+						</div>
+						<motion.button
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							onClick={() => setShowPopup(false)}
+							className="w-full flex items-center justify-center px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
+						>
+							Close
+						</motion.button>
+					</GlassCard>
+				</motion.div>
+			)}
 			{showResults && auditResult ? (
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<motion.div
@@ -444,10 +563,14 @@ const AuditPage: React.FC = () => {
 							<motion.button
 								whileHover={{ scale: 1.05 }}
 								whileTap={{ scale: 0.95 }}
-								className="flex items-center px-6 py-3 bg-secondary-600 text-white rounded-xl hover:bg-secondary-700 transition-colors btn-hover"
+								onClick={handleStoreOnBlockchain}
+								disabled={isStoring}
+								className={`flex items-center px-6 py-3 bg-secondary-600 text-white rounded-xl hover:bg-secondary-700 transition-colors btn-hover ${
+									isStoring ? "opacity-50 cursor-not-allowed" : ""
+								}`}
 							>
 								<Blockchain className="mr-2 h-5 w-5" />
-								Store on Blockchain
+								{isStoring ? "Storing..." : "Store on Blockchain"}
 							</motion.button>
 
 							<motion.button
@@ -458,10 +581,10 @@ const AuditPage: React.FC = () => {
 									setAuditId(null);
 									setAuditResult(null);
 									setError(null);
+									setStoreResult(null);
+									setShowPopup(false);
 								}}
-								className="flex items-center px-6 py-3 glass rounded-xl hover:shadow-glow transition-all duration-300 
-             text-gray-900 dark:text-white 
-             border border-gray-300 dark:border-gray-600"
+								className="flex items-center px-6 py-3 glass rounded-xl hover:shadow-glow transition-all duration-300 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"
 							>
 								<Upload className="mr-2 h-5 w-5 text-gray-900 dark:text-white" />
 								New Audit

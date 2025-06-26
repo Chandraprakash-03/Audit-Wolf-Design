@@ -11,7 +11,6 @@ import {
 	Plus,
 	Filter,
 	Calendar,
-	TrendingUp,
 	Shield,
 	Zap,
 } from "lucide-react";
@@ -19,6 +18,7 @@ import { useAuth } from "../contexts/AuthContext";
 import GlassCard from "../components/ui/GlassCard";
 import MouseTracker from "../components/ui/MouseTracker";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
+import { supabase } from "../db/supabase";
 
 interface Audit {
 	id: string;
@@ -28,7 +28,7 @@ interface Audit {
 	completedAt?: string;
 	issuesFound: number;
 	severity: "low" | "medium" | "high" | "critical";
-	securityScore?: number;
+	securityScore?: number; // Changed back to optional
 	gasOptimizations?: number;
 	reportUrl?: string;
 }
@@ -46,6 +46,23 @@ const DashboardPage: React.FC = () => {
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState("");
 
+	const calculateSecurityScore = (issues: any[]) => {
+		const severityWeights = {
+			critical: 30,
+			high: 20,
+			medium: 10,
+			low: 5,
+		};
+		let score = 100;
+		issues.forEach((issue) => {
+			score -=
+				severityWeights[
+					issue.severity.toLowerCase() as keyof typeof severityWeights
+				] || 5;
+		});
+		return Math.max(0, score);
+	};
+
 	useEffect(() => {
 		if (!user?.email) {
 			setError("Please sign in to view your audits.");
@@ -59,7 +76,7 @@ const DashboardPage: React.FC = () => {
 
 			try {
 				const response = await fetch(
-					`${import.meta.env.VITE_API_URL}user-audit/${user.email}`,
+					`${import.meta.env.VITE_API_URL}/user-audit/${user.email}`,
 					{
 						method: "POST",
 						headers: {
@@ -95,7 +112,10 @@ const DashboardPage: React.FC = () => {
 									: max.toLowerCase();
 						  }, "low")
 						: "low",
-					securityScore: undefined, // Not provided in API response, can be calculated if needed
+					securityScore:
+						audit.status === "completed" && audit.auditJson
+							? calculateSecurityScore(audit.auditJson)
+							: undefined,
 					gasOptimizations: audit.gasOptimizations
 						? audit.gasOptimizations.suggestions.length
 						: 0,
@@ -122,23 +142,22 @@ const DashboardPage: React.FC = () => {
 
 	const handleDownloadReport = async (auditId: string) => {
 		try {
-			const response = await fetch(`/api/audit/report/${auditId}/pdf`);
+			const fullPath = `${auditId}.pdf`;
+			const { data: publicUrlData } = supabase.storage
+				.from("audit-reports")
+				.getPublicUrl(fullPath, { download: true });
 
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-			}
+			const url = publicUrlData?.publicUrl;
+			if (!url) throw new Error("Public URL not found");
 
-			const blob = await response.blob();
-			const url = window.URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = `audit-${auditId}.pdf`;
-			document.body.appendChild(a);
-			a.click();
-			a.remove();
-			window.URL.revokeObjectURL(url);
-		} catch (err: any) {
-			setError(err.message || "Failed to download report. Please try again.");
+			const link = document.createElement("a");
+			link.href = url;
+			link.setAttribute("download", `audit-${auditId}.pdf`);
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+		} catch (err) {
+			setError("Failed to download PDF: " + (err as Error).message);
 		}
 	};
 
@@ -196,12 +215,18 @@ const DashboardPage: React.FC = () => {
 		completed: audits.filter((a) => a.status === "completed").length,
 		pending: audits.filter((a) => a.status === "pending").length,
 		critical: audits.filter((a) => a.severity === "critical").length,
-		avgScore: audits.filter((a) => a.securityScore).length
+		avgScore: audits.filter(
+			(a) => a.status === "completed" && a.securityScore !== undefined
+		).length
 			? Math.round(
 					audits
-						.filter((a) => a.securityScore)
+						.filter(
+							(a) => a.status === "completed" && a.securityScore !== undefined
+						)
 						.reduce((acc, a) => acc + (a.securityScore || 0), 0) /
-						audits.filter((a) => a.securityScore).length
+						audits.filter(
+							(a) => a.status === "completed" && a.securityScore !== undefined
+						).length
 			  )
 			: 0,
 	};
@@ -393,7 +418,6 @@ const DashboardPage: React.FC = () => {
 														<div className="p-3 bg-primary-100 dark:bg-primary-900/20 rounded-xl">
 															<FileText className="h-6 w-6 text-primary-600 dark:text-primary-400" />
 														</div>
-
 														<div>
 															<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
 																{audit.contractName}
@@ -417,31 +441,26 @@ const DashboardPage: React.FC = () => {
 															</div>
 														</div>
 													</div>
-
 													<div className="flex flex-wrap items-center gap-4">
-														{/* Status */}
 														<div className="flex items-center space-x-2">
 															{getStatusIcon(audit.status)}
 															<span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize">
 																{audit.status}
 															</span>
 														</div>
-
-														{/* Security Score */}
-														{audit.securityScore && (
-															<div className="flex items-center space-x-2">
-																<Shield className="h-4 w-4 text-gray-500" />
-																<span
-																	className={`text-sm font-medium ${getScoreColor(
-																		audit.securityScore
-																	)}`}
-																>
-																	{audit.securityScore}/100
-																</span>
-															</div>
-														)}
-
-														{/* Issues */}
+														{audit.status === "completed" &&
+															audit.securityScore !== undefined && (
+																<div className="flex items-center space-x-2">
+																	<Shield className="h-4 w-4 text-gray-500" />
+																	<span
+																		className={`text-sm font-medium ${getScoreColor(
+																			audit.securityScore
+																		)}`}
+																	>
+																		{audit.securityScore}/100
+																	</span>
+																</div>
+															)}
 														{audit.status === "completed" && (
 															<span
 																className={`px-3 py-1 rounded-full text-xs font-medium border ${getSeverityColor(
@@ -452,9 +471,8 @@ const DashboardPage: React.FC = () => {
 																{audit.issuesFound === 1 ? "Issue" : "Issues"}
 															</span>
 														)}
-
-														{/* Gas Optimizations */}
-														{audit.gasOptimizations &&
+														{audit.status === "completed" &&
+															audit.gasOptimizations &&
 															audit.gasOptimizations > 0 && (
 																<div className="flex items-center space-x-1 text-sm text-blue-600 dark:text-blue-400">
 																	<Zap className="h-4 w-4" />
@@ -463,8 +481,6 @@ const DashboardPage: React.FC = () => {
 																	</span>
 																</div>
 															)}
-
-														{/* Actions */}
 														{audit.status === "completed" && (
 															<div className="flex space-x-2">
 																<motion.button
@@ -476,7 +492,6 @@ const DashboardPage: React.FC = () => {
 																>
 																	<Eye className="h-5 w-5" />
 																</motion.button>
-
 																<motion.button
 																	whileHover={{ scale: 1.05 }}
 																	whileTap={{ scale: 0.95 }}
