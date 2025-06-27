@@ -9,8 +9,8 @@ import MouseTracker from "../components/ui/MouseTracker";
 
 const LoginPage: React.FC = () => {
 	const [formData, setFormData] = useState({
-		email: "",
-		password: "",
+		email: "test@gmail.com",
+		password: "pass@123",
 	});
 	const [showPassword, setShowPassword] = useState(false);
 	const [error, setError] = useState("");
