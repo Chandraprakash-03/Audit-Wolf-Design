@@ -65,7 +65,7 @@ function App() {
 						</AnimatePresence>
 
 						{/* Bolt Badge - appears on all pages */}
-						<BoltBadge />
+{/* 						<BoltBadge /> */}
 
 						<SpeedInsights />
 						<Analytics />
